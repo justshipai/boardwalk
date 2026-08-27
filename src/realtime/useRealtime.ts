@@ -40,6 +40,7 @@ export function useRealtime() {
     send({
       type: 'session.update',
       session: {
+        type: 'realtime',
         instructions: buildInstructions(useMeeting.getState().intensity),
         tools: toRealtimeTools(),
         tool_choice: 'auto',
