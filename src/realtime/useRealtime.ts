@@ -1,9 +1,13 @@
 'use client';
 
+/* eslint-disable react-hooks/immutability -- imperative WebRTC peer connections/data channels are held in refs and closed on cleanup */
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { executeAction, toRealtimeTools } from '@/actions/registry';
 import { currentSlide, useMeeting } from '@/state/meeting-store';
+import type { BoardSeat } from '@/state/types';
 import { buildInstructions } from './instructions';
+import { CHAIR, personas, pickSpeaker, type Persona } from './personas';
 
 export type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -14,6 +18,13 @@ interface RealtimeEvent {
   arguments?: string;
   transcript?: string;
   error?: { message?: string };
+}
+
+interface Agent {
+  persona: Persona;
+  pc: RTCPeerConnection;
+  dc: RTCDataChannel;
+  audio: HTMLAudioElement;
 }
 
 function extractSecret(session: Record<string, unknown>): string | null {
@@ -28,42 +39,69 @@ export function useRealtime() {
   const [status, setStatus] = useState<RealtimeStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
-  const [boardSpeaking, setBoardSpeaking] = useState(false);
+  const [activeSpeaker, setActiveSpeaker] = useState<BoardSeat | null>(null);
 
-  const pc = useRef<RTCPeerConnection | null>(null);
-  const dc = useRef<RTCDataChannel | null>(null);
+  const agents = useRef<Agent[]>([]);
   const mic = useRef<MediaStream | null>(null);
-  const audio = useRef<HTMLAudioElement | null>(null);
+  const lastSpeaker = useRef<BoardSeat | null>(null);
+  const speaking = useRef(false);
 
-  const send = (payload: object) => dc.current?.readyState === 'open' && dc.current.send(JSON.stringify(payload));
+  const agentFor = (seat: BoardSeat) => agents.current.find((a) => a.persona.seat === seat);
+  const sendTo = (agent: Agent | undefined, payload: object) =>
+    agent?.dc.readyState === 'open' && agent.dc.send(JSON.stringify(payload));
 
-  const pushTools = useCallback(() => {
-    send({
+  const configureAgent = useCallback((agent: Agent) => {
+    const isChair = agent.persona.seat === CHAIR.seat;
+    sendTo(agent, {
       type: 'session.update',
       session: {
         type: 'realtime',
-        instructions: buildInstructions(useMeeting.getState().intensity),
+        instructions: buildInstructions(agent.persona, useMeeting.getState().intensity),
         tools: toRealtimeTools(),
         tool_choice: 'auto',
-        // let the founder speak — wait for a real pause and don't cut them off
         audio: {
           input: {
             turn_detection: {
               type: 'server_vad',
               threshold: 0.6,
-              silence_duration_ms: 1100,
+              silence_duration_ms: 900,
               prefix_padding_ms: 300,
-              create_response: true,
+              create_response: false, // the conductor decides who speaks — never auto-respond
               interrupt_response: false,
             },
+            transcription: isChair ? { model: 'gpt-4o-mini-transcribe' } : undefined,
           },
         },
       },
     });
   }, []);
 
+  // ask one persona to speak now
+  const trigger = useCallback((seat: BoardSeat, instructions?: string) => {
+    const agent = agentFor(seat);
+    if (!agent) return;
+    speaking.current = true;
+    setActiveSpeaker(seat);
+    sendTo(agent, { type: 'response.create', response: instructions ? { instructions, tool_choice: 'none' } : {} });
+  }, []);
+
+  // decide whether the board reacts to the founder's turn, and if so, who
+  const conduct = useCallback(
+    (founderText: string) => {
+      if (speaking.current) return; // never talk over whoever is speaking
+      const text = founderText.trim();
+      const speaker = pickSpeaker(text, lastSpeaker.current);
+      const relevant = text.includes('?') || speaker.keywords.some((k) => text.toLowerCase().includes(k));
+      // stay silent while the founder is simply presenting; only step in when it's relevant to a seat
+      if (!relevant) return;
+      trigger(speaker.seat);
+    },
+    [trigger],
+  );
+
   const handleEvent = useCallback(
-    (evt: RealtimeEvent) => {
+    (agent: Agent, evt: RealtimeEvent) => {
+      const seat = agent.persona.seat;
       switch (evt.type) {
         case 'response.function_call_arguments.done': {
           if (!evt.name || !evt.call_id) return;
@@ -74,130 +112,148 @@ export function useRealtime() {
             args = {};
           }
           const outcome = executeAction(evt.name, args);
-          send({
+          sendTo(agent, {
             type: 'conversation.item.create',
-            item: {
-              type: 'function_call_output',
-              call_id: evt.call_id,
-              output: JSON.stringify({ summary: outcome.summary, ...(outcome.data ?? {}) }),
-            },
+            item: { type: 'function_call_output', call_id: evt.call_id, output: JSON.stringify({ summary: outcome.summary, ...(outcome.data ?? {}) }) },
           });
-          pushTools(); // dynamic lifecycle may have changed the available tools
-          send({ type: 'response.create' });
+          sendTo(agent, { type: 'session.update', session: { type: 'realtime', tools: toRealtimeTools() } });
+          sendTo(agent, { type: 'response.create' });
           break;
         }
         case 'response.created':
-          setBoardSpeaking(true);
+          speaking.current = true;
+          setActiveSpeaker(seat);
           break;
         case 'response.done':
-          setBoardSpeaking(false);
+          speaking.current = false;
+          lastSpeaker.current = seat;
+          setActiveSpeaker(null);
           break;
         case 'response.output_audio_transcript.done':
-          if (evt.transcript) useMeeting.getState().addTranscript({ speaker: 'board', text: evt.transcript });
+          if (evt.transcript) useMeeting.getState().addTranscript({ speaker: 'board', seat, text: evt.transcript });
           break;
         case 'conversation.item.input_audio_transcription.completed':
-          if (evt.transcript) useMeeting.getState().addTranscript({ speaker: 'founder', text: evt.transcript });
+          // only the chair transcribes the founder; use it to drive the whole board
+          if (seat === CHAIR.seat && evt.transcript) {
+            useMeeting.getState().addTranscript({ speaker: 'founder', text: evt.transcript });
+            conduct(evt.transcript);
+          }
           break;
         case 'error':
           setError(evt.error?.message ?? 'Realtime error');
           break;
       }
     },
-    [pushTools],
+    [conduct],
   );
 
   const cleanup = useCallback(() => {
-    dc.current?.close();
-    pc.current?.close();
+    for (const a of agents.current) {
+      a.dc.close();
+      a.pc.close();
+      a.audio.srcObject = null;
+    }
+    agents.current = [];
     mic.current?.getTracks().forEach((t) => t.stop());
-    if (audio.current) audio.current.srcObject = null;
-    dc.current = null;
-    pc.current = null;
     mic.current = null;
+    lastSpeaker.current = null;
+    speaking.current = false;
   }, []);
 
   const disconnect = useCallback(() => {
     cleanup();
     setStatus('idle');
-    setBoardSpeaking(false);
+    setActiveSpeaker(null);
   }, [cleanup]);
 
-  const connect = useCallback(async () => {
-    setStatus('connecting');
-    setError(null);
-    try {
-      const res = await fetch('/api/realtime/session', { method: 'POST' });
+  const connectAgent = useCallback(
+    async (persona: Persona, stream: MediaStream | null): Promise<Agent> => {
+      const res = await fetch('/api/realtime/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voice: persona.voice }),
+      });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? 'Voice is not available right now.');
+        const b = await res.json().catch(() => ({}));
+        throw new Error(b.error ?? 'Voice is not available right now.');
       }
       const session = await res.json();
       const secret = extractSecret(session);
       if (!secret) throw new Error('Realtime session did not return a usable token.');
       const model = (session.model as string) ?? 'gpt-realtime-2';
 
-      const peer = new RTCPeerConnection();
-      peer.ontrack = (e) => {
-        if (!audio.current) {
-          audio.current = new Audio();
-          audio.current.autoplay = true;
-        }
-        audio.current.srcObject = e.streams[0];
+      const pc = new RTCPeerConnection();
+      const audio = new Audio();
+      audio.autoplay = true;
+      pc.ontrack = (e) => {
+        audio.srcObject = e.streams[0];
       };
+      if (stream) stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      else pc.addTransceiver('audio', { direction: 'recvonly' });
 
-      // mic is best-effort — if it is denied or absent we still connect and fall back to typed input
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mic.current = stream;
-        stream.getTracks().forEach((track) => peer.addTrack(track, stream));
-      } catch {
-        peer.addTransceiver('audio', { direction: 'recvonly' });
-      }
-
-      const channel = peer.createDataChannel('oai-events');
-      dc.current = channel;
-      channel.onopen = () => {
-        pushTools();
-        setStatus('connected');
-        // controlled opening: greet and wait, so the board never front-runs the founder with a review
-        send({
-          type: 'response.create',
-          response: {
-            instructions:
-              'Greet the founder warmly in one short sentence and invite them to walk you through the quarter. Do not raise any issue or question, and do not call any tool yet.',
-            tool_choice: 'none',
-          },
-        });
-      };
-      channel.onmessage = (e) => {
+      const dc = pc.createDataChannel('oai-events');
+      const agent: Agent = { persona, pc, dc, audio };
+      dc.onopen = () => configureAgent(agent);
+      dc.onmessage = (e) => {
         try {
-          handleEvent(JSON.parse(e.data));
+          handleEvent(agent, JSON.parse(e.data));
         } catch {
           /* ignore non-JSON frames */
         }
       };
 
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
       const sdpRes = await fetch(`https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(model)}`, {
         method: 'POST',
         body: offer.sdp,
         headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/sdp' },
       });
       if (!sdpRes.ok) throw new Error('Could not establish the audio connection.');
+      await pc.setRemoteDescription({ type: 'answer', sdp: await sdpRes.text() });
+      return agent;
+    },
+    [configureAgent, handleEvent],
+  );
 
-      await peer.setRemoteDescription({ type: 'answer', sdp: await sdpRes.text() });
-      pc.current = peer;
+  const connect = useCallback(async () => {
+    setStatus('connecting');
+    setError(null);
+    try {
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mic.current = stream;
+      } catch {
+        stream = null;
+      }
+
+      const settled = await Promise.allSettled(personas.map((p) => connectAgent(p, stream)));
+      const connected = settled.filter((r): r is PromiseFulfilledResult<Agent> => r.status === 'fulfilled').map((r) => r.value);
+      if (connected.length === 0) {
+        const firstError = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+        throw new Error(firstError?.reason?.message ?? 'Could not connect the board.');
+      }
+      agents.current = connected;
+      setStatus('connected');
+
+      // the chair opens; everyone else waits for the conductor
+      const chair = agentFor(CHAIR.seat) ? CHAIR.seat : connected[0].persona.seat;
+      setTimeout(() => {
+        trigger(
+          chair,
+          `You are opening the board meeting. Greet the founder warmly in one short sentence and invite them to walk you through the quarter. Do not raise any issue and do not call any tool.`,
+        );
+        lastSpeaker.current = chair;
+      }, 400);
     } catch (err) {
       cleanup();
       setError(err instanceof Error ? err.message : 'Could not connect.');
       setStatus('error');
     }
-  }, [handleEvent, pushTools, cleanup]);
+  }, [connectAgent, cleanup, trigger]);
 
-  // Gap 1: keep the board looking at whatever slide the founder is on — push slide context on
-  // navigation (without forcing a response) so it challenges what's on screen as they walk the deck
+  // push the current slide to every board member on founder navigation (no response forced)
   useEffect(() => {
     if (status !== 'connected') return;
     let prev = useMeeting.getState().currentSlideId;
@@ -207,19 +263,11 @@ export function useRealtime() {
       const slide = currentSlide(s);
       if (!slide) return;
       const content = slide.pageText ?? [slide.narrative, ...slide.bullets].filter(Boolean).join('. ');
-      send({
+      const item = {
         type: 'conversation.item.create',
-        item: {
-          type: 'message',
-          role: 'user',
-          content: [
-            {
-              type: 'input_text',
-              text: `[context, no reply needed: the founder is now on slide ${slide.index + 1}, "${slide.title}". On-screen: ${content}]`,
-            },
-          ],
-        },
-      });
+        item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: `[context, no reply needed: the founder is now on slide ${slide.index + 1}, "${slide.title}". On-screen: ${content}]` }] },
+      };
+      for (const a of agents.current) sendTo(a, item);
     });
   }, [status]);
 
@@ -229,14 +277,19 @@ export function useRealtime() {
     setMuted(next);
   }, [muted]);
 
-  // text fallback: drive the live board model with a typed founder turn (P0 mic-failure path)
+  // text fallback: route a typed founder turn to the most relevant board member
   const sendText = useCallback((text: string) => {
-    if (dc.current?.readyState !== 'open') return false;
+    if (agents.current.length === 0) return false;
     useMeeting.getState().addTranscript({ speaker: 'founder', text });
-    send({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] } });
-    send({ type: 'response.create' });
+    const speaker = pickSpeaker(text, lastSpeaker.current);
+    const agent = agentFor(speaker.seat);
+    if (!agent) return false;
+    sendTo(agent, { type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] } });
+    speaking.current = true;
+    setActiveSpeaker(speaker.seat);
+    sendTo(agent, { type: 'response.create' });
     return true;
   }, []);
 
-  return { status, error, muted, boardSpeaking, connect, disconnect, toggleMute, sendText };
+  return { status, error, muted, activeSpeaker, boardSpeaking: activeSpeaker !== null, connect, disconnect, toggleMute, sendText };
 }

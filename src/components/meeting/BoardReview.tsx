@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useMeeting } from '@/state/meeting-store';
+import { personaBySeat } from '@/realtime/personas';
 import type { Commitment, Decision, Intervention } from '@/state/types';
 import { kindLabel, seatLabel, severityStyle } from './display';
 
@@ -26,7 +27,7 @@ function ConcernCard({ concern }: { concern: Intervention }) {
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-text">{kindLabel[concern.kind]}</span>
           <span className="text-text-faint">·</span>
-          <span className="text-xs text-text-muted">{seatLabel[concern.seat]}</span>
+          <span className="text-xs text-text-muted">{personaBySeat.get(concern.seat)?.name ?? seatLabel[concern.seat]}</span>
         </div>
         <span className={`text-[10px] font-semibold uppercase tracking-wide ${style.text}`}>{concern.severity}</span>
       </div>

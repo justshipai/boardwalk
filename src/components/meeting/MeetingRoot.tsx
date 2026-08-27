@@ -6,7 +6,7 @@ import { buildReadout } from '@/actions/readout';
 import { executeAction } from '@/actions/registry';
 import { startWebMcpSync } from '@/actions/webmcp';
 import { useDirector } from '@/director/useDirector';
-import { RealtimeProvider } from '@/realtime/RealtimeContext';
+import { RealtimeProvider, useRealtimeContext } from '@/realtime/RealtimeContext';
 import { useMeeting } from '@/state/meeting-store';
 import { consumePendingDeck } from '@/features/upload/pending-deck';
 import { Readout } from '@/components/readout/Readout';
@@ -21,7 +21,9 @@ import { ToolActivityFeed } from './ToolActivityFeed';
 function MeetingBody() {
   const started = useRef(false);
   const director = useDirector();
+  const realtime = useRealtimeContext();
   const phase = useMeeting((s) => s.phase);
+  const speakingSeat = realtime.activeSpeaker ?? director.speakingSeat;
 
   useEffect(() => {
     if (started.current) return;
@@ -56,7 +58,7 @@ function MeetingBody() {
             <span className="h-2.5 w-2.5 rounded-full bg-material" />
             <span className="text-sm font-semibold tracking-tight">Boardwalk</span>
           </Link>
-          <BoardSeats speakingSeat={director.speakingSeat} />
+          <BoardSeats speakingSeat={speakingSeat} />
         </div>
         <MeetingPhaseBar phase={phase} />
         <ListeningIndicator />

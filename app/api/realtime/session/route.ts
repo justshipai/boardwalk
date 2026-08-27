@@ -8,7 +8,9 @@ const DEFAULT_MODEL = 'gpt-realtime-2';
 // generic session the /calls endpoint rejects, so anything else falls back to the working default
 const isValidModel = (m: string) => /^gpt-realtime(-\d|$)/.test(m) && m !== 'gpt-realtime-2.1';
 
-export async function POST() {
+const VOICES = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar']);
+
+export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   const configured = process.env.REALTIME_MODEL?.trim();
   const model = configured && isValidModel(configured) ? configured : DEFAULT_MODEL;
@@ -20,10 +22,15 @@ export async function POST() {
     );
   }
 
+  const body = await request.json().catch(() => ({}));
+  const voice = typeof body?.voice === 'string' && VOICES.has(body.voice) ? body.voice : undefined;
+  const session: Record<string, unknown> = { type: 'realtime', model };
+  if (voice) session.audio = { output: { voice } };
+
   const res = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session: { type: 'realtime', model } }),
+    body: JSON.stringify({ session }),
   });
 
   const data = await res.json();
