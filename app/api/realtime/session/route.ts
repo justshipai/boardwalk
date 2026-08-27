@@ -4,13 +4,14 @@ import { NextResponse } from 'next/server';
 // ever seeing the standard API key (§8.5). Until OPENAI_API_KEY is set this returns a clear 501
 // and the app runs in text rehearsal mode.
 const DEFAULT_MODEL = 'gpt-realtime-2';
-// "gpt-realtime-2.1" appears in the PRD but is not a real model id — it mints a generic session
-const INVALID_MODELS = new Set(['gpt-realtime-2.1']);
+// only accept a real realtime snapshot; "realtime" and the PRD's "gpt-realtime-2.1" both mint a
+// generic session the /calls endpoint rejects, so anything else falls back to the working default
+const isValidModel = (m: string) => /^gpt-realtime(-\d|$)/.test(m) && m !== 'gpt-realtime-2.1';
 
 export async function POST() {
   const apiKey = process.env.OPENAI_API_KEY;
   const configured = process.env.REALTIME_MODEL?.trim();
-  const model = configured && !INVALID_MODELS.has(configured) ? configured : DEFAULT_MODEL;
+  const model = configured && isValidModel(configured) ? configured : DEFAULT_MODEL;
 
   if (!apiKey) {
     return NextResponse.json(
@@ -31,5 +32,5 @@ export async function POST() {
   }
 
   // echo the model actually minted so the client uses the same one for the SDP exchange
-  return NextResponse.json({ ...data, model: data?.session?.model ?? model, requestedModel: model });
+  return NextResponse.json({ ...data, model: data?.session?.model ?? model });
 }
