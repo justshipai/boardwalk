@@ -53,9 +53,11 @@ await document.modelContext.__call('get_current_slide', {}); // (polyfill helper
 
 In Chrome 149+ with WebMCP enabled, or in ChatGPT's in-app browser, the native implementation is used automatically and the built-in agent can discover the same tools.
 
-## Voice (next build)
+## Voice
 
-The Realtime speech-to-speech board runs over WebRTC against `gpt-realtime-2.1`. The server mints a short-lived client secret in [`app/api/realtime/session/route.ts`](app/api/realtime/session/route.ts); the standard API key never reaches the browser. Until `OPENAI_API_KEY` is set, Boardwalk runs in **text rehearsal mode**: you present in text and a deterministic board director drives the same tools, so both signature moments work with no key.
+The Realtime speech-to-speech board runs over WebRTC against `gpt-realtime-2`. The server mints a short-lived client secret in [`app/api/realtime/session/route.ts`](app/api/realtime/session/route.ts); the standard API key never reaches the browser. Realtime function calls run through the same `executeAction` path as WebMCP, and the tool set is re-sent after each call so the dynamic lifecycle carries over to voice. If the microphone is denied, the session still connects and you drive the board by typing.
+
+Until `OPENAI_API_KEY` is set, Boardwalk runs in **text rehearsal mode**: you present in text and a deterministic board director drives the same tools, so both signature moments work with no key.
 
 ```bash
 cp .env.example .env.local   # then add OPENAI_API_KEY

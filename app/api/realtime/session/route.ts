@@ -3,10 +3,14 @@ import { NextResponse } from 'next/server';
 // Mints a short-lived Realtime client secret so the browser can open a WebRTC session without
 // ever seeing the standard API key (§8.5). Until OPENAI_API_KEY is set this returns a clear 501
 // and the app runs in text rehearsal mode.
-export async function POST(request: Request) {
+const DEFAULT_MODEL = 'gpt-realtime-2';
+// "gpt-realtime-2.1" appears in the PRD but is not a real model id — it mints a generic session
+const INVALID_MODELS = new Set(['gpt-realtime-2.1']);
+
+export async function POST() {
   const apiKey = process.env.OPENAI_API_KEY;
-  const probe = new URL(request.url).searchParams.get('model');
-  const model = probe ?? process.env.REALTIME_MODEL ?? 'gpt-realtime';
+  const configured = process.env.REALTIME_MODEL;
+  const model = configured && !INVALID_MODELS.has(configured) ? configured : DEFAULT_MODEL;
 
   if (!apiKey) {
     return NextResponse.json(

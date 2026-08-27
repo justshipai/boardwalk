@@ -112,7 +112,7 @@ export function useRealtime() {
       const session = await res.json();
       const secret = extractSecret(session);
       if (!secret) throw new Error('Realtime session did not return a usable token.');
-      const model = (session.model as string) ?? 'gpt-realtime-2.1';
+      const model = (session.model as string) ?? 'gpt-realtime-2';
 
       const peer = new RTCPeerConnection();
       peer.ontrack = (e) => {
