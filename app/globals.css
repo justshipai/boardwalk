@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  /* dark neutral boardroom stage (§11) */
+  --bg: #0b0c0e;
+  --panel: #131519;
+  --panel-2: #191c21;
+  --stage: #f4f2ec;
+  --stage-ink: #16171a;
+  --border: #24272e;
+  --border-strong: #333842;
+
+  --text: #edeef1;
+  --text-muted: #9aa1ac;
+  --text-faint: #666d78;
+
+  /* restrained status accents: amber = material, red = critical */
+  --material: #d9a441;
+  --material-soft: rgba(217, 164, 65, 0.14);
+  --critical: #e05a4d;
+  --critical-soft: rgba(224, 90, 77, 0.14);
+  --watch: #6f7580;
+  --watch-soft: rgba(111, 117, 128, 0.14);
+  --accepted: #4bb389;
+  --accepted-soft: rgba(75, 179, 137, 0.14);
+  --brand: #6ea8fe;
+  --brand-soft: rgba(110, 168, 254, 0.14);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-stage: var(--stage);
+  --color-stage-ink: var(--stage-ink);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-material: var(--material);
+  --color-material-soft: var(--material-soft);
+  --color-critical: var(--critical);
+  --color-critical-soft: var(--critical-soft);
+  --color-watch: var(--watch);
+  --color-watch-soft: var(--watch-soft);
+  --color-accepted: var(--accepted);
+  --color-accepted-soft: var(--accepted-soft);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(217, 164, 65, 0.5); }
+  70% { box-shadow: 0 0 0 10px rgba(217, 164, 65, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(217, 164, 65, 0); }
+}
+.evidence-pulse { animation: pulse-ring 1.1s ease-out 2; }
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.card-in { animation: card-in 0.18s ease-out; }
