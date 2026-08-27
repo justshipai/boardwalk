@@ -123,9 +123,14 @@ export function useRealtime() {
         audio.current.srcObject = e.streams[0];
       };
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mic.current = stream;
-      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+      // mic is best-effort — if it is denied or absent we still connect and fall back to typed input
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mic.current = stream;
+        stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+      } catch {
+        peer.addTransceiver('audio', { direction: 'recvonly' });
+      }
 
       const channel = peer.createDataChannel('oai-events');
       dc.current = channel;
@@ -166,5 +171,14 @@ export function useRealtime() {
     setMuted(next);
   }, [muted]);
 
-  return { status, error, muted, connect, disconnect, toggleMute };
+  // text fallback: drive the live board model with a typed founder turn (P0 mic-failure path)
+  const sendText = useCallback((text: string) => {
+    if (dc.current?.readyState !== 'open') return false;
+    useMeeting.getState().addTranscript({ speaker: 'founder', text });
+    send({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] } });
+    send({ type: 'response.create' });
+    return true;
+  }, []);
+
+  return { status, error, muted, connect, disconnect, toggleMute, sendText };
 }

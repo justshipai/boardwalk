@@ -1,9 +1,9 @@
 'use client';
 
-import { useRealtime } from '@/realtime/useRealtime';
+import { useRealtimeContext } from '@/realtime/RealtimeContext';
 
 export function VoiceControl({ speaking }: { speaking: boolean }) {
-  const { status, error, muted, connect, disconnect, toggleMute } = useRealtime();
+  const { status, error, muted, connect, disconnect, toggleMute } = useRealtimeContext();
 
   if (status === 'connected') {
     return (

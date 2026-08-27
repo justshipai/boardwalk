@@ -7,10 +7,12 @@ export function BottomBar({
   onPresent,
   onEnd,
   speaking,
+  voiceLive,
 }: {
   onPresent: (text: string) => void;
   onEnd: () => void;
   speaking: boolean;
+  voiceLive: boolean;
 }) {
   const slides = useMeeting((s) => s.slides);
   const currentSlideId = useMeeting((s) => s.currentSlideId);
@@ -88,7 +90,7 @@ export function BottomBar({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !speaking && submit()}
-            placeholder="Present your point, or press enter to present the slide…"
+            placeholder={voiceLive ? 'Type to the board if you’d rather not speak…' : 'Present your point, or press enter to present the slide…'}
             className="flex-1 rounded-lg border border-border bg-panel-2 px-3 py-2 text-sm text-text outline-none placeholder:text-text-faint focus:border-border-strong"
           />
           <button

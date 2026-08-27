@@ -52,10 +52,12 @@ function MetricCard({ metric, focused, flagged }: { metric: Metric; focused: boo
 export function SlideStage({
   onPresent,
   speaking,
+  voiceLive,
   hasScript,
 }: {
   onPresent: () => void;
   speaking: boolean;
+  voiceLive: boolean;
   hasScript: boolean;
 }) {
   const slide = useMeeting(currentSlide);
@@ -116,18 +118,22 @@ export function SlideStage({
 
       <div className="mt-3 flex items-center justify-between">
         <p className="text-xs text-text-faint">
-          {hasScript
-            ? 'Present this slide to hear the board respond.'
-            : 'The board is listening — no material issue on this slide.'}
+          {voiceLive
+            ? 'Voice is live — present by speaking, or type below.'
+            : hasScript
+              ? 'Present this slide to hear the board respond.'
+              : 'The board is listening — no material issue on this slide.'}
         </p>
-        <button
-          type="button"
-          onClick={present}
-          disabled={speaking}
-          className="rounded-lg bg-panel-2 px-4 py-2 text-sm font-medium text-text ring-1 ring-border-strong transition hover:bg-border disabled:opacity-50"
-        >
-          {speaking ? 'Board is responding…' : alreadyPresented ? 'Present again' : 'Present this slide'}
-        </button>
+        {!voiceLive && (
+          <button
+            type="button"
+            onClick={present}
+            disabled={speaking}
+            className="rounded-lg bg-panel-2 px-4 py-2 text-sm font-medium text-text ring-1 ring-border-strong transition hover:bg-border disabled:opacity-50"
+          >
+            {speaking ? 'Board is responding…' : alreadyPresented ? 'Present again' : 'Present this slide'}
+          </button>
+        )}
       </div>
     </div>
   );

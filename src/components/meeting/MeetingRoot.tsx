@@ -5,6 +5,7 @@ import { buildReadout } from '@/actions/readout';
 import { executeAction } from '@/actions/registry';
 import { startWebMcpSync } from '@/actions/webmcp';
 import { useDirector } from '@/director/useDirector';
+import { RealtimeProvider, useRealtimeContext } from '@/realtime/RealtimeContext';
 import { useMeeting } from '@/state/meeting-store';
 import { Readout } from '@/components/readout/Readout';
 import { BoardSeats } from './BoardSeats';
@@ -16,9 +17,10 @@ import { SlideStage } from './SlideStage';
 import { ToolActivityFeed } from './ToolActivityFeed';
 import { VoiceControl } from './VoiceControl';
 
-export function MeetingRoot() {
+function MeetingBody() {
   const started = useRef(false);
   const director = useDirector();
+  const realtime = useRealtimeContext();
   const phase = useMeeting((s) => s.phase);
   const currentSlideId = useMeeting((s) => s.currentSlideId);
 
@@ -35,6 +37,14 @@ export function MeetingRoot() {
       started.current = false;
     };
   }, []);
+
+  const voiceLive = realtime.status === 'connected';
+
+  // when voice is live the typed input drives the real board model; otherwise the rehearsal director
+  const handlePresent = (text: string) => {
+    if (voiceLive && realtime.sendText(text)) return;
+    director.present(text);
+  };
 
   const endMeeting = () => {
     const outcome = executeAction('generate_board_readout', {});
@@ -60,6 +70,7 @@ export function MeetingRoot() {
           <SlideStage
             onPresent={director.playCurrent}
             speaking={speaking}
+            voiceLive={voiceLive}
             hasScript={currentSlideId ? director.hasScript(currentSlideId) : false}
           />
         </div>
@@ -77,7 +88,15 @@ export function MeetingRoot() {
         </aside>
       </div>
 
-      <BottomBar onPresent={director.present} onEnd={endMeeting} speaking={speaking} />
+      <BottomBar onPresent={handlePresent} onEnd={endMeeting} speaking={speaking} voiceLive={voiceLive} />
     </div>
+  );
+}
+
+export function MeetingRoot() {
+  return (
+    <RealtimeProvider>
+      <MeetingBody />
+    </RealtimeProvider>
   );
 }
