@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { buildReadout } from '@/actions/readout';
 import { executeAction } from '@/actions/registry';
 import { startWebMcpSync } from '@/actions/webmcp';
@@ -51,10 +52,10 @@ function MeetingBody() {
     <div className="flex h-screen flex-col">
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-4">
-          <a href="/" className="flex items-center gap-2 rounded-md px-1 py-0.5 transition hover:opacity-80" title="Home — upload a deck or restart">
+          <Link href="/" className="flex items-center gap-2 rounded-md px-1 py-0.5 transition hover:opacity-80" title="Home — upload a deck or restart">
             <span className="h-2.5 w-2.5 rounded-full bg-material" />
             <span className="text-sm font-semibold tracking-tight">Boardwalk</span>
-          </a>
+          </Link>
           <BoardSeats speakingSeat={director.speakingSeat} />
         </div>
         <MeetingPhaseBar phase={phase} />
