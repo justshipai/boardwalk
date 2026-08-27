@@ -63,3 +63,7 @@ export async function parsePdf(file: File, onProgress?: (done: number, total: nu
     slides,
   };
 }
+
+if (typeof window !== 'undefined') {
+  (window as unknown as { __parsePdf?: typeof parsePdf }).__parsePdf = parsePdf;
+}
