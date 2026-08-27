@@ -14,7 +14,7 @@ import { InterventionRail } from './InterventionRail';
 import { MeetingPhaseBar } from './MeetingPhaseBar';
 import { SlideStage } from './SlideStage';
 import { ToolActivityFeed } from './ToolActivityFeed';
-import { VoiceStatus } from './VoiceStatus';
+import { VoiceControl } from './VoiceControl';
 
 export function MeetingRoot() {
   const started = useRef(false);
@@ -52,13 +52,13 @@ export function MeetingRoot() {
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
         <BoardSeats speakingSeat={director.speakingSeat} />
         <MeetingPhaseBar phase={phase} />
-        <VoiceStatus speaking={speaking} />
+        <VoiceControl speaking={speaking} />
       </header>
 
       <div className="flex min-h-0 flex-1 gap-4 p-4">
         <div className="flex min-w-0 flex-1 flex-col">
           <SlideStage
-            onPresent={() => currentSlideId && director.play(currentSlideId)}
+            onPresent={director.playCurrent}
             speaking={speaking}
             hasScript={currentSlideId ? director.hasScript(currentSlideId) : false}
           />

@@ -31,6 +31,11 @@ export function useDirector() {
     busy.current = false;
   }, []);
 
+  const playCurrent = useCallback(() => {
+    const slideId = useMeeting.getState().currentSlideId;
+    if (slideId) return play(slideId);
+  }, [play]);
+
   const present = useCallback(
     async (text: string) => {
       const slideId = useMeeting.getState().currentSlideId;
@@ -41,5 +46,5 @@ export function useDirector() {
     [play],
   );
 
-  return { play, present, speakingSeat, hasScript: (slideId: string) => scriptedSlideIds.has(slideId) };
+  return { play, playCurrent, present, speakingSeat, hasScript: (slideId: string) => scriptedSlideIds.has(slideId) };
 }
