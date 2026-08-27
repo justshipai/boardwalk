@@ -1,7 +1,7 @@
 'use client';
 
 import type { Slide } from '@/state/types';
-import type { PendingDeck } from './pending-deck';
+import { setPendingDeck, type PendingDeck } from './pending-deck';
 
 const MAX_PAGES = 30;
 
@@ -65,5 +65,7 @@ export async function parsePdf(file: File, onProgress?: (done: number, total: nu
 }
 
 if (typeof window !== 'undefined') {
-  (window as unknown as { __parsePdf?: typeof parsePdf }).__parsePdf = parsePdf;
+  const w = window as unknown as { __parsePdf?: typeof parsePdf; __setPendingDeck?: typeof setPendingDeck };
+  w.__parsePdf = parsePdf;
+  w.__setPendingDeck = setPendingDeck;
 }
