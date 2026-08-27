@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 
 // Mints a short-lived Realtime client secret so the browser can open a WebRTC session without
-// ever seeing the standard API key (§8.5). Voice wiring lands in the next build; until OPENAI_API_KEY
-// is set this returns a clear 501 and the app runs in text rehearsal mode.
-export async function POST() {
+// ever seeing the standard API key (§8.5). Until OPENAI_API_KEY is set this returns a clear 501
+// and the app runs in text rehearsal mode.
+export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.REALTIME_MODEL ?? 'gpt-realtime-2.1';
+  const probe = new URL(request.url).searchParams.get('model');
+  const model = probe ?? process.env.REALTIME_MODEL ?? 'gpt-realtime';
 
   if (!apiKey) {
     return NextResponse.json(
@@ -20,10 +21,11 @@ export async function POST() {
     body: JSON.stringify({ session: { type: 'realtime', model } }),
   });
 
+  const data = await res.json();
   if (!res.ok) {
-    const detail = await res.text();
-    return NextResponse.json({ error: 'Could not create a realtime session', detail }, { status: 502 });
+    return NextResponse.json({ error: 'Could not create a realtime session', detail: data }, { status: 502 });
   }
 
-  return NextResponse.json(await res.json());
+  // echo the model actually minted so the client uses the same one for the SDP exchange
+  return NextResponse.json({ ...data, model: data?.session?.model ?? model });
 }
