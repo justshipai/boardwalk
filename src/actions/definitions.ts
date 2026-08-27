@@ -50,6 +50,7 @@ export const boardActions: BoardAction[] = [
           title: slide.title,
           narrative: slide.narrative,
           bullets: slide.bullets,
+          text: slide.pageText ?? undefined,
           metrics: slide.metrics.map((x) => ({ id: x.id, label: x.label, current: x.current, unit: x.unit, trend: x.trend })),
         },
       };

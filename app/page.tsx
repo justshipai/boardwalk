@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { UploadDeckButton } from '@/features/upload/UploadDeckButton';
 
 export default function LandingPage() {
   return (
@@ -31,16 +32,7 @@ export default function LandingPage() {
             >
               Try the demo
             </Link>
-            <div className="flex flex-col gap-1">
-              <button
-                type="button"
-                disabled
-                className="w-fit cursor-not-allowed rounded-lg border border-border px-5 py-3 text-base font-medium text-text-faint"
-              >
-                Upload a board deck
-              </button>
-              <span className="text-xs text-text-faint">Upload arrives with the voice build — the demo needs no setup.</span>
-            </div>
+            <UploadDeckButton />
           </div>
 
           <p className="mt-12 max-w-xl text-sm leading-relaxed text-text-faint">

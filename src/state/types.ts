@@ -38,6 +38,9 @@ export interface Slide {
   metrics: Metric[];
   // internal note used to encode the deck's hidden weaknesses; never shown as a metric value
   subtext?: string;
+  // uploaded decks: the rendered page image and the extracted page text the board reads
+  imageDataUrl?: string;
+  pageText?: string;
 }
 
 export interface Commitment {

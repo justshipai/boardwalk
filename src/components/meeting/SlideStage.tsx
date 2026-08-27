@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { currentSlide, useMeeting } from '@/state/meeting-store';
 import type { Metric } from '@/state/types';
 
@@ -49,90 +48,51 @@ function MetricCard({ metric, focused, flagged }: { metric: Metric; focused: boo
   );
 }
 
-export function SlideStage({
-  onPresent,
-  speaking,
-  voiceLive,
-  hasScript,
-}: {
-  onPresent: () => void;
-  speaking: boolean;
-  voiceLive: boolean;
-  hasScript: boolean;
-}) {
+export function SlideStage() {
   const slide = useMeeting(currentSlide);
   const focusedMetricId = useMeeting((s) => s.focusedMetricId);
   const interventions = useMeeting((s) => s.interventions);
-  const [presented, setPresented] = useState<Set<string>>(new Set());
 
   if (!slide) return <div className="flex flex-1 items-center justify-center text-text-faint">Loading deck…</div>;
 
   const flaggedMetricIds = new Set(interventions.filter((i) => i.metricId).map((i) => i.metricId));
   const slideFlagged = interventions.some((i) => i.slideId === slide.id && (i.kind === 'flag' || i.kind === 'question'));
-  const alreadyPresented = presented.has(slide.id);
-
-  const present = () => {
-    setPresented((prev) => new Set(prev).add(slide.id));
-    onPresent();
-  };
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="relative flex-1 overflow-auto rounded-xl bg-stage p-8 text-stage-ink shadow-2xl">
-        <div className="mb-6 flex items-center justify-between">
-          <span className="text-xs font-medium uppercase tracking-[0.16em] text-black/40">
-            Slide {slide.index + 1}
-          </span>
+      <div className={`relative flex-1 overflow-auto rounded-xl bg-stage text-stage-ink shadow-2xl ${slide.imageDataUrl ? 'p-3' : 'p-8'}`}>
+        <div className={`flex items-center justify-between ${slide.imageDataUrl ? 'mb-3 px-1' : 'mb-6'}`}>
+          <span className="text-xs font-medium uppercase tracking-[0.16em] text-black/40">Slide {slide.index + 1}</span>
           {slideFlagged && (
-            <span className="rounded-full bg-critical-soft px-2.5 py-0.5 text-xs font-medium text-critical">
-              Under question
-            </span>
+            <span className="rounded-full bg-critical-soft px-2.5 py-0.5 text-xs font-medium text-critical">Under question</span>
           )}
         </div>
 
-        <h2 className="text-3xl font-semibold tracking-tight">{slide.title}</h2>
-        <p className="mt-3 max-w-2xl text-lg leading-relaxed text-black/70">{slide.narrative}</p>
+        {slide.imageDataUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={slide.imageDataUrl} alt={slide.title} className="mx-auto w-full max-w-3xl rounded-md" />
+        ) : (
+          <>
+            <h2 className="text-3xl font-semibold tracking-tight">{slide.title}</h2>
+            <p className="mt-3 max-w-2xl text-lg leading-relaxed text-black/70">{slide.narrative}</p>
 
-        <ul className="mt-6 space-y-2">
-          {slide.bullets.map((b) => (
-            <li key={b} className="flex gap-2.5 text-[15px] text-black/75">
-              <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-black/40" />
-              {b}
-            </li>
-          ))}
-        </ul>
+            <ul className="mt-6 space-y-2">
+              {slide.bullets.map((b) => (
+                <li key={b} className="flex gap-2.5 text-[15px] text-black/75">
+                  <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-black/40" />
+                  {b}
+                </li>
+              ))}
+            </ul>
 
-        {slide.metrics.length > 0 && (
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {slide.metrics.map((m) => (
-              <MetricCard
-                key={m.id}
-                metric={m}
-                focused={focusedMetricId === m.id}
-                flagged={flaggedMetricIds.has(m.id)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="mt-3 flex items-center justify-between">
-        <p className="text-xs text-text-faint">
-          {voiceLive
-            ? 'Voice is live — present by speaking, or type below.'
-            : hasScript
-              ? 'Present this slide to hear the board respond.'
-              : 'The board is listening — no material issue on this slide.'}
-        </p>
-        {!voiceLive && (
-          <button
-            type="button"
-            onClick={present}
-            disabled={speaking}
-            className="rounded-lg bg-panel-2 px-4 py-2 text-sm font-medium text-text ring-1 ring-border-strong transition hover:bg-border disabled:opacity-50"
-          >
-            {speaking ? 'Board is responding…' : alreadyPresented ? 'Present again' : 'Present this slide'}
-          </button>
+            {slide.metrics.length > 0 && (
+              <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {slide.metrics.map((m) => (
+                  <MetricCard key={m.id} metric={m} focused={focusedMetricId === m.id} flagged={flaggedMetricIds.has(m.id)} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

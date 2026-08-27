@@ -28,6 +28,7 @@ export function useRealtime() {
   const [status, setStatus] = useState<RealtimeStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
+  const [boardSpeaking, setBoardSpeaking] = useState(false);
 
   const pc = useRef<RTCPeerConnection | null>(null);
   const dc = useRef<RTCDataChannel | null>(null);
@@ -72,6 +73,12 @@ export function useRealtime() {
           send({ type: 'response.create' });
           break;
         }
+        case 'response.created':
+          setBoardSpeaking(true);
+          break;
+        case 'response.done':
+          setBoardSpeaking(false);
+          break;
         case 'response.output_audio_transcript.done':
           if (evt.transcript) useMeeting.getState().addTranscript({ speaker: 'board', text: evt.transcript });
           break;
@@ -99,6 +106,7 @@ export function useRealtime() {
   const disconnect = useCallback(() => {
     cleanup();
     setStatus('idle');
+    setBoardSpeaking(false);
   }, [cleanup]);
 
   const connect = useCallback(async () => {
@@ -181,5 +189,5 @@ export function useRealtime() {
     return true;
   }, []);
 
-  return { status, error, muted, connect, disconnect, toggleMute, sendText };
+  return { status, error, muted, boardSpeaking, connect, disconnect, toggleMute, sendText };
 }

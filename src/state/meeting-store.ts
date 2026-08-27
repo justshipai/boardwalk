@@ -35,6 +35,7 @@ function emptyMeeting(): Meeting {
 
 interface MeetingActions {
   loadDemoDeck: () => void;
+  loadDeck: (company: import('./types').CompanyContext, slides: import('./types').Slide[]) => void;
   startMeeting: () => void;
   setPhase: (phase: MeetingPhase) => void;
   goToSlide: (slideId: string) => void;
@@ -62,6 +63,16 @@ export const useMeeting = create<MeetingState>((set, get) => ({
       commitments: northstarPreviousCommitments.map((c) => ({ ...c })),
       deckLoaded: true,
       currentSlideId: northstarSlides[0]?.id ?? null,
+      phase: 'prepare',
+    }),
+
+  loadDeck: (company, slides) =>
+    set({
+      company,
+      slides,
+      commitments: [],
+      deckLoaded: true,
+      currentSlideId: slides[0]?.id ?? null,
       phase: 'prepare',
     }),
 
