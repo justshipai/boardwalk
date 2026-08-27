@@ -45,6 +45,19 @@ export function useRealtime() {
         instructions: buildInstructions(useMeeting.getState().intensity),
         tools: toRealtimeTools(),
         tool_choice: 'auto',
+        // let the founder speak — wait for a real pause and don't cut them off
+        audio: {
+          input: {
+            turn_detection: {
+              type: 'server_vad',
+              threshold: 0.6,
+              silence_duration_ms: 1100,
+              prefix_padding_ms: 300,
+              create_response: true,
+              interrupt_response: false,
+            },
+          },
+        },
       },
     });
   }, []);
@@ -193,7 +206,7 @@ export function useRealtime() {
           content: [
             {
               type: 'input_text',
-              text: `[context: the founder is now presenting slide ${slide.index + 1}, "${slide.title}". On-screen content: ${content}. Read it and challenge anything material when they speak.]`,
+              text: `[context, no reply needed: the founder is now on slide ${slide.index + 1}, "${slide.title}". On-screen: ${content}]`,
             },
           ],
         },

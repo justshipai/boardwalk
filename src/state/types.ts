@@ -60,23 +60,6 @@ export interface Slide {
   claims?: Claim[];
 }
 
-export type AnnotationKind = 'circle' | 'strike' | 'underline' | 'pin' | 'arrow';
-
-export interface AnnotationTarget {
-  metricId?: string;
-  claimId?: string;
-  region?: Region;
-}
-
-export interface Annotation {
-  id: string;
-  slideId: string;
-  kind: AnnotationKind;
-  target: AnnotationTarget;
-  label?: string;
-  severity: Severity;
-  createdAt: number;
-}
 
 export interface Commitment {
   id: string;
@@ -147,7 +130,6 @@ export interface Meeting {
   commitments: Commitment[];
   interventions: Intervention[];
   decisions: Decision[];
-  annotations: Annotation[];
   transcript: TranscriptTurn[];
   readout: BoardReadout | null;
 }

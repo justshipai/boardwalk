@@ -28,7 +28,6 @@ function emptyMeeting(): Meeting {
     commitments: [],
     interventions: [],
     decisions: [],
-    annotations: [],
     transcript: [],
     readout: null,
   };
@@ -47,8 +46,6 @@ interface MeetingActions {
   updateCommitment: (id: string, patch: Partial<Commitment>) => void;
   addDecision: (input: Omit<Decision, 'id' | 'status'> & { status?: InterventionStatus }) => Decision;
   updateDecision: (id: string, patch: Partial<Decision>) => void;
-  addAnnotation: (input: Omit<import('./types').Annotation, 'id' | 'createdAt'>) => void;
-  clearAnnotations: (slideId?: string) => void;
   addTranscript: (turn: Omit<TranscriptTurn, 'id' | 'at'>) => void;
   setReadout: (readout: BoardReadout) => void;
   reset: () => void;
@@ -64,7 +61,6 @@ export const useMeeting = create<MeetingState>((set, get) => ({
       company: northstarCompany,
       slides: northstarSlides,
       commitments: northstarPreviousCommitments.map((c) => ({ ...c })),
-      annotations: [],
       deckLoaded: true,
       currentSlideId: northstarSlides[0]?.id ?? null,
       phase: 'prepare',
@@ -75,7 +71,6 @@ export const useMeeting = create<MeetingState>((set, get) => ({
       company,
       slides,
       commitments: [],
-      annotations: [],
       deckLoaded: true,
       currentSlideId: slides[0]?.id ?? null,
       phase: 'prepare',
@@ -131,23 +126,6 @@ export const useMeeting = create<MeetingState>((set, get) => ({
 
   updateDecision: (id, patch) =>
     set((s) => ({ decisions: s.decisions.map((d) => (d.id === id ? { ...d, ...patch } : d)) })),
-
-  addAnnotation: (input) =>
-    set((s) => {
-      const duplicate = s.annotations.some(
-        (a) =>
-          a.slideId === input.slideId &&
-          a.kind === input.kind &&
-          a.target.metricId === input.target.metricId &&
-          a.target.claimId === input.target.claimId &&
-          a.label === input.label,
-      );
-      if (duplicate) return {};
-      return { annotations: [...s.annotations, { ...input, id: uid('anno'), createdAt: Date.now() }] };
-    }),
-
-  clearAnnotations: (slideId) =>
-    set((s) => ({ annotations: slideId ? s.annotations.filter((a) => a.slideId !== slideId) : [] })),
 
   addTranscript: (turn) =>
     set((s) => ({ transcript: [...s.transcript, { ...turn, id: uid('turn'), at: Date.now() }] })),

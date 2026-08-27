@@ -9,9 +9,8 @@ import { RealtimeProvider } from '@/realtime/RealtimeContext';
 import { useMeeting } from '@/state/meeting-store';
 import { consumePendingDeck } from '@/features/upload/pending-deck';
 import { Readout } from '@/components/readout/Readout';
+import { BoardReview } from './BoardReview';
 import { BoardSeats } from './BoardSeats';
-import { CommitmentsDrawer } from './CommitmentsDrawer';
-import { InterventionRail } from './InterventionRail';
 import { ListeningIndicator } from './ListeningIndicator';
 import { MeetingControlBar } from './MeetingControlBar';
 import { MeetingPhaseBar } from './MeetingPhaseBar';
@@ -61,14 +60,9 @@ function MeetingBody() {
           <SlideStage />
         </div>
 
-        <aside className="flex w-[360px] shrink-0 flex-col gap-3">
-          <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-panel/40 p-3">
-            <div className="flex min-h-0 flex-1 flex-col">
-              <InterventionRail />
-            </div>
-            <div className="flex min-h-0 flex-[0.9] flex-col">
-              <CommitmentsDrawer />
-            </div>
+        <aside className="flex w-[400px] shrink-0 flex-col gap-3">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-panel/40">
+            <BoardReview />
           </div>
           <ToolActivityFeed />
         </aside>

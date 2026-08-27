@@ -1,9 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
 import { currentSlide, useMeeting } from '@/state/meeting-store';
 import type { Metric } from '@/state/types';
-import { AnnotationLayer } from './AnnotationLayer';
 
 function Sparkline({ metric, flagged }: { metric: Metric; flagged: boolean }) {
   const values = metric.history.map((h) => h.value);
@@ -30,7 +28,6 @@ function Sparkline({ metric, flagged }: { metric: Metric; flagged: boolean }) {
 function MetricCard({ metric, focused, flagged }: { metric: Metric; focused: boolean; flagged: boolean }) {
   return (
     <div
-      data-metric={metric.id}
       className={`rounded-lg border bg-white/60 p-3 transition ${
         focused ? 'evidence-pulse border-material' : flagged ? 'border-critical/60' : 'border-black/10'
       }`}
@@ -54,7 +51,6 @@ export function SlideStage() {
   const slide = useMeeting(currentSlide);
   const focusedMetricId = useMeeting((s) => s.focusedMetricId);
   const interventions = useMeeting((s) => s.interventions);
-  const stageRef = useRef<HTMLDivElement>(null);
 
   if (!slide) return <div className="flex flex-1 items-center justify-center text-text-faint">Loading deck…</div>;
 
@@ -63,10 +59,7 @@ export function SlideStage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <div
-        ref={stageRef}
-        className={`relative flex-1 overflow-auto rounded-xl bg-stage text-stage-ink shadow-2xl ${slide.imageDataUrl ? 'p-3' : 'p-8'}`}
-      >
+      <div className={`relative flex-1 overflow-auto rounded-xl bg-stage text-stage-ink shadow-2xl ${slide.imageDataUrl ? 'p-3' : 'p-8'}`}>
         <div className={`flex items-center justify-between ${slide.imageDataUrl ? 'mb-3 px-1' : 'mb-6'}`}>
           <span className="text-xs font-medium uppercase tracking-[0.16em] text-black/40">Slide {slide.index + 1}</span>
           {slideFlagged && (
@@ -76,15 +69,15 @@ export function SlideStage() {
 
         {slide.imageDataUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img data-slide-image src={slide.imageDataUrl} alt={slide.title} className="mx-auto w-full max-w-3xl rounded-md" />
+          <img src={slide.imageDataUrl} alt={slide.title} className="mx-auto w-full max-w-3xl rounded-md" />
         ) : (
           <>
             <h2 className="text-3xl font-semibold tracking-tight">{slide.title}</h2>
             <p className="mt-3 max-w-2xl text-lg leading-relaxed text-black/70">{slide.narrative}</p>
 
             <ul className="mt-6 space-y-2">
-              {slide.bullets.map((b, i) => (
-                <li key={b} data-claim={`${slide.id}-b${i}`} className="flex w-fit gap-2.5 text-[15px] text-black/75">
+              {slide.bullets.map((b) => (
+                <li key={b} className="flex gap-2.5 text-[15px] text-black/75">
                   <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-black/40" />
                   {b}
                 </li>
@@ -100,8 +93,6 @@ export function SlideStage() {
             )}
           </>
         )}
-
-        <AnnotationLayer containerRef={stageRef} slideId={slide.id} />
       </div>
     </div>
   );
