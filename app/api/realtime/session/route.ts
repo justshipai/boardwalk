@@ -9,7 +9,7 @@ const INVALID_MODELS = new Set(['gpt-realtime-2.1']);
 
 export async function POST() {
   const apiKey = process.env.OPENAI_API_KEY;
-  const configured = process.env.REALTIME_MODEL;
+  const configured = process.env.REALTIME_MODEL?.trim();
   const model = configured && !INVALID_MODELS.has(configured) ? configured : DEFAULT_MODEL;
 
   if (!apiKey) {
@@ -31,5 +31,5 @@ export async function POST() {
   }
 
   // echo the model actually minted so the client uses the same one for the SDP exchange
-  return NextResponse.json({ ...data, model: data?.session?.model ?? model });
+  return NextResponse.json({ ...data, model: data?.session?.model ?? model, requestedModel: model });
 }
