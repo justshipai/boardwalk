@@ -248,21 +248,22 @@ export const boardActions: BoardAction[] = [
   },
   {
     name: 'record_decision',
-    description: 'Record a decision the board must resolve, with the options in play. The founder chooses.',
+    description: 'Log a decision the meeting must resolve, with the options and, if you have a view, the one you recommend.',
     inputSchema: {
       type: 'object',
       properties: {
         question: { type: 'string', description: 'The decision to be made.' },
         options: { type: 'array', items: { type: 'string' }, description: 'The options in play.' },
+        recommended: { type: 'string', description: "The option the board leans toward, if any (must be one of options)." },
       },
       required: ['question', 'options'],
       additionalProperties: false,
     },
     annotations: { title: 'Record decision', effect: 'Adds a decision to the board review.' },
     isAvailable: (m) => m.meetingStarted && notInReadout(m.phase),
-    handler: (args: { question: string; options: string[] }) => {
-      const decision = useMeeting.getState().addDecision({ question: args.question, options: args.options });
-      return { summary: `Decision recorded: ${args.question}`, data: { decision } };
+    handler: (args: { question: string; options: string[]; recommended?: string }) => {
+      const decision = useMeeting.getState().addDecision({ question: args.question, options: args.options, recommended: args.recommended });
+      return { summary: `Decision logged: ${args.question}`, data: { decision } };
     },
   },
   {

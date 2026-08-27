@@ -75,6 +75,8 @@ export interface Decision {
   id: string;
   question: string;
   options: string[];
+  // the option the board leans toward, if it took a position
+  recommended?: string;
   chosen?: string;
   status: InterventionStatus;
 }
