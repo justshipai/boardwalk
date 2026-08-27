@@ -1,15 +1,39 @@
 import { currentSlide, findMetric, useMeeting } from '@/state/meeting-store';
-import type { BoardSeat, InterventionKind, Severity } from '@/state/types';
+import type { AnnotationKind, AnnotationTarget, BoardSeat, Claim, InterventionKind, Severity, Slide } from '@/state/types';
 import { buildReadout } from './readout';
 import type { BoardAction } from './types';
 
 const SEATS: BoardSeat[] = ['lead-investor', 'operator', 'independent-chair'];
 const SEVERITIES: Severity[] = ['watch', 'material', 'critical'];
+const ANNOTATION_KINDS: AnnotationKind[] = ['circle', 'strike', 'underline', 'pin', 'arrow'];
 
 const seatEnum = { type: 'string', enum: SEATS };
 const severityEnum = { type: 'string', enum: SEVERITIES };
 
 const notInReadout = (phase: string) => phase !== 'readout';
+
+function slideClaims(slide: Slide): Claim[] {
+  if (slide.claims?.length) return slide.claims;
+  return slide.bullets.map((text, i) => ({ id: `${slide.id}-b${i}`, text }));
+}
+
+// attach a claim's stored region (uploaded decks) so the annotation renders without a DOM anchor
+function resolveTarget(slide: Slide, target: AnnotationTarget): AnnotationTarget {
+  if (target.claimId && !target.region) {
+    const claim = slideClaims(slide).find((c) => c.id === target.claimId);
+    if (claim?.region) return { ...target, region: claim.region };
+  }
+  return target;
+}
+
+const shortLabel = (text: string) => {
+  const clean = text.replace(/^["“]|["”]$/g, '').trim();
+  return clean.length > 32 ? `${clean.slice(0, 32)}…` : clean;
+};
+
+function annotate(slide: Slide, kind: AnnotationKind, target: AnnotationTarget, label: string | undefined, severity: Severity) {
+  useMeeting.getState().addAnnotation({ slideId: slide.id, kind, target: resolveTarget(slide, target), label, severity });
+}
 
 export const boardActions: BoardAction[] = [
   // ---- Read tools (readOnlyHint) ----
@@ -51,6 +75,7 @@ export const boardActions: BoardAction[] = [
           narrative: slide.narrative,
           bullets: slide.bullets,
           text: slide.pageText ?? undefined,
+          claims: slideClaims(slide).map((c) => ({ id: c.id, text: c.text })),
           metrics: slide.metrics.map((x) => ({ id: x.id, label: x.label, current: x.current, unit: x.unit, trend: x.trend })),
         },
       };
@@ -131,12 +156,13 @@ export const boardActions: BoardAction[] = [
         severity: severityEnum,
         slideId: { type: 'string' },
         metricId: { type: 'string' },
+        claimId: { type: 'string', description: 'A claim id from get_current_slide, to pin the question to a specific line.' },
       },
       required: ['statement', 'whyItMatters'],
     },
-    annotations: { title: 'Raise board question', effect: 'Adds a question card to the intervention rail.' },
+    annotations: { title: 'Raise board question', effect: 'Pins a question to the slide and adds a card to the rail.' },
     isAvailable: (m) => m.meetingStarted && notInReadout(m.phase),
-    handler: (args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string }) =>
+    handler: (args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string; claimId?: string }) =>
       addInterventionResult('question', args),
   },
   {
@@ -152,13 +178,38 @@ export const boardActions: BoardAction[] = [
         severity: severityEnum,
         slideId: { type: 'string' },
         metricId: { type: 'string' },
+        claimId: { type: 'string', description: 'A claim id from get_current_slide, to strike the exact disputed line.' },
       },
       required: ['statement', 'whyItMatters'],
     },
-    annotations: { title: 'Flag assumption', effect: 'Marks the claim on the slide and adds a flag to the rail.' },
+    annotations: { title: 'Flag assumption', effect: 'Marks the disputed claim on the slide and adds a flag to the rail.' },
     isAvailable: (m) => m.meetingStarted && notInReadout(m.phase),
-    handler: (args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string }) =>
+    handler: (args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string; claimId?: string }) =>
       addInterventionResult('flag', args),
+  },
+  {
+    name: 'annotate_evidence',
+    description:
+      'Draw a mark directly on the current slide so the founder sees exactly what you mean: circle a metric, strike a disputed line, underline a claim, or pin a note. Target a metric by metricId or a line by claimId (from get_current_slide).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ANNOTATION_KINDS, description: 'circle, strike, underline, pin or arrow.' },
+        metricId: { type: 'string', description: 'Metric to mark.' },
+        claimId: { type: 'string', description: 'Claim/line to mark, from get_current_slide.' },
+        label: { type: 'string', description: 'Short note shown on the mark (a few words).' },
+        severity: severityEnum,
+      },
+      required: ['kind'],
+    },
+    annotations: { title: 'Annotate evidence', effect: 'Draws the mark on the current slide within a second.' },
+    isAvailable: (m) => m.deckLoaded && notInReadout(m.phase),
+    handler: (args: { kind: AnnotationKind; metricId?: string; claimId?: string; label?: string; severity?: Severity }, m) => {
+      const slide = currentSlide(m);
+      if (!slide) return { summary: 'No active slide to annotate.', data: { drawn: false } };
+      annotate(slide, args.kind, { metricId: args.metricId, claimId: args.claimId }, args.label, args.severity ?? 'material');
+      return { summary: `Drew ${args.kind} on slide ${slide.index + 1}${args.label ? `: ${args.label}` : ''}.`, data: { drawn: true, kind: args.kind } };
+    },
   },
   {
     name: 'request_metric_drilldown',
@@ -264,22 +315,39 @@ export const boardActions: BoardAction[] = [
 
 function addInterventionResult(
   kind: InterventionKind,
-  args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string },
+  args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string; claimId?: string },
 ) {
   const store = useMeeting.getState();
   const slideId = args.slideId ?? store.currentSlideId ?? undefined;
+  const severity = args.severity ?? 'material';
   const intervention = store.addIntervention({
     kind,
     seat: args.seat ?? 'lead-investor',
     statement: args.statement,
     whyItMatters: args.whyItMatters,
-    severity: args.severity ?? 'material',
+    severity,
     slideId,
     metricId: args.metricId,
   });
   if (!intervention) return { summary: 'That intervention is already open (not duplicated).', data: { duplicate: true } };
   if (args.slideId) store.goToSlide(args.slideId);
   if (args.metricId) store.focusMetric(args.metricId);
+
+  // guaranteed on-deck mark: the board visibly marks what it just challenged
+  const slide = currentSlide(useMeeting.getState());
+  if (slide && slide.id === (slideId ?? slide.id)) {
+    const target: AnnotationTarget = args.metricId
+      ? { metricId: args.metricId }
+      : args.claimId
+        ? { claimId: args.claimId }
+        : { region: { x: 0.62, y: 0.06, w: 0.32, h: 0.14 } };
+    if (kind === 'flag') {
+      annotate(slide, args.metricId ? 'circle' : args.claimId ? 'strike' : 'pin', target, shortLabel(args.statement), severity);
+    } else if (kind === 'question') {
+      annotate(slide, 'arrow', target, 'Q', severity);
+    }
+  }
+
   return { summary: `${kind}: ${args.statement}`, data: { intervention } };
 }
 

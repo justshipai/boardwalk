@@ -1,9 +1,60 @@
 'use client';
 
-import type { Slide } from '@/state/types';
+import type { Claim, Slide } from '@/state/types';
 import type { PendingDeck } from './pending-deck';
 
 const MAX_PAGES = 30;
+const MAX_CLAIMS_PER_PAGE = 40;
+
+interface TextRun {
+  str: string;
+  transform: number[];
+  width: number;
+  height: number;
+}
+
+// group text runs into line-level claims with a normalized (0–1) bounding box, so the board can
+// mark the exact line of an arbitrary uploaded page (Gap 2)
+function extractClaims(items: unknown[], pageW: number, pageH: number, slideId: string): Claim[] {
+  const runs = items.filter((it): it is TextRun => !!it && typeof it === 'object' && 'str' in it && 'transform' in it);
+  const lines = new Map<number, { runs: { x: number; s: string }[]; minX: number; maxX: number; minY: number; maxY: number }>();
+
+  for (const run of runs) {
+    if (!run.str.trim()) continue;
+    const x = run.transform[4];
+    const baseline = run.transform[5];
+    const h = run.height || 10;
+    const top = pageH - (baseline + h);
+    const key = Math.round(baseline / 4); // cluster runs sharing a baseline into one line
+    const line = lines.get(key) ?? { runs: [], minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+    line.runs.push({ x, s: run.str });
+    line.minX = Math.min(line.minX, x);
+    line.maxX = Math.max(line.maxX, x + run.width);
+    line.minY = Math.min(line.minY, top);
+    line.maxY = Math.max(line.maxY, top + h);
+    lines.set(key, line);
+  }
+
+  return [...lines.entries()]
+    .sort((a, b) => b[0] - a[0]) // higher baseline = nearer the top of the page
+    .map(([, line], i) => ({
+      id: `${slideId}-l${i}`,
+      text: line.runs
+        .sort((a, b) => a.x - b.x)
+        .map((r) => r.s)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim(),
+      region: {
+        x: line.minX / pageW,
+        y: line.minY / pageH,
+        w: (line.maxX - line.minX) / pageW,
+        h: (line.maxY - line.minY) / pageH,
+      },
+    }))
+    .filter((c) => c.text.length > 1)
+    .slice(0, MAX_CLAIMS_PER_PAGE);
+}
 
 function deriveTitle(text: string, index: number): string {
   const firstLine = text
@@ -36,6 +87,7 @@ export async function parsePdf(file: File, onProgress?: (done: number, total: nu
     }
     const imageDataUrl = canvas.toDataURL('image/jpeg', 0.7);
 
+    const unscaled = page.getViewport({ scale: 1 });
     const textContent = await page.getTextContent();
     const pageText = textContent.items
       .map((item) => ('str' in item ? item.str : ''))
@@ -43,15 +95,18 @@ export async function parsePdf(file: File, onProgress?: (done: number, total: nu
       .replace(/\s+/g, ' ')
       .trim();
 
+    const claims = extractClaims(textContent.items, unscaled.width, unscaled.height, `slide-${i}`);
+
     slides.push({
       id: `slide-${i}`,
       index: i - 1,
-      title: deriveTitle(pageText, i - 1),
+      title: deriveTitle(claims[0]?.text ?? pageText, i - 1),
       narrative: '',
       bullets: [],
       metrics: [],
       imageDataUrl,
       pageText,
+      claims,
     });
     onProgress?.(i, pageCount);
   }

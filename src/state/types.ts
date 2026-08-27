@@ -28,6 +28,21 @@ export interface Metric {
   caveat?: string;
 }
 
+// normalized (0–1) rectangle over the slide, used to anchor annotations on image/uploaded decks
+export interface Region {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+// a targetable line of the deck — a bullet on a structured slide, or a text run on an uploaded page
+export interface Claim {
+  id: string;
+  text: string;
+  region?: Region;
+}
+
 export interface Slide {
   id: string;
   index: number;
@@ -41,6 +56,26 @@ export interface Slide {
   // uploaded decks: the rendered page image and the extracted page text the board reads
   imageDataUrl?: string;
   pageText?: string;
+  // targetable text runs with positions (populated for uploaded decks; derived from bullets otherwise)
+  claims?: Claim[];
+}
+
+export type AnnotationKind = 'circle' | 'strike' | 'underline' | 'pin' | 'arrow';
+
+export interface AnnotationTarget {
+  metricId?: string;
+  claimId?: string;
+  region?: Region;
+}
+
+export interface Annotation {
+  id: string;
+  slideId: string;
+  kind: AnnotationKind;
+  target: AnnotationTarget;
+  label?: string;
+  severity: Severity;
+  createdAt: number;
 }
 
 export interface Commitment {
@@ -112,6 +147,7 @@ export interface Meeting {
   commitments: Commitment[];
   interventions: Intervention[];
   decisions: Decision[];
+  annotations: Annotation[];
   transcript: TranscriptTurn[];
   readout: BoardReadout | null;
 }

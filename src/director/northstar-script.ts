@@ -38,6 +38,13 @@ export const northstarScript: Record<string, ScriptStep[]> = {
       pauseMs: 700,
     },
     {
+      seat: 'lead-investor',
+      say: 'And I am striking the seasonal framing until you can support it.',
+      tool: 'annotate_evidence',
+      args: { kind: 'strike', claimId: 'slide-4-b1', label: 'Not seasonal', severity: 'critical' },
+      pauseMs: 500,
+    },
+    {
       seat: 'independent-chair',
       say: 'What evidence separates seasonality from structural churn? Cohort curves, logo vs dollar churn, anything.',
       tool: 'raise_board_question',
@@ -105,6 +112,7 @@ export const northstarScript: Record<string, ScriptStep[]> = {
         seat: 'independent-chair',
         severity: 'critical',
         slideId: 'slide-7',
+        claimId: 'slide-7-b3',
       },
       pauseMs: 700,
     },

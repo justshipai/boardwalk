@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { executeAction, toRealtimeTools } from '@/actions/registry';
-import { useMeeting } from '@/state/meeting-store';
+import { currentSlide, useMeeting } from '@/state/meeting-store';
 import { buildInstructions } from './instructions';
 
 export type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'error';
@@ -173,6 +173,33 @@ export function useRealtime() {
       setStatus('error');
     }
   }, [handleEvent, pushTools, cleanup]);
+
+  // Gap 1: keep the board looking at whatever slide the founder is on — push slide context on
+  // navigation (without forcing a response) so it challenges what's on screen as they walk the deck
+  useEffect(() => {
+    if (status !== 'connected') return;
+    let prev = useMeeting.getState().currentSlideId;
+    return useMeeting.subscribe((s) => {
+      if (s.currentSlideId === prev) return;
+      prev = s.currentSlideId;
+      const slide = currentSlide(s);
+      if (!slide) return;
+      const content = slide.pageText ?? [slide.narrative, ...slide.bullets].filter(Boolean).join('. ');
+      send({
+        type: 'conversation.item.create',
+        item: {
+          type: 'message',
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: `[context: the founder is now presenting slide ${slide.index + 1}, "${slide.title}". On-screen content: ${content}. Read it and challenge anything material when they speak.]`,
+            },
+          ],
+        },
+      });
+    });
+  }, [status]);
 
   const toggleMute = useCallback(() => {
     const next = !muted;

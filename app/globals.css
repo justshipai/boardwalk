@@ -75,3 +75,19 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 .card-in { animation: card-in 0.18s ease-out; }
+
+/* on-deck annotations: stroke draws itself on, pins drop in */
+@keyframes anno-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+.anno-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: anno-draw 0.6s ease-out forwards;
+}
+@keyframes pin-drop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+.pin-drop { animation: pin-drop 0.24s ease-out; }
