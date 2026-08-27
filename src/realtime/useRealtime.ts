@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable react-hooks/immutability -- imperative WebRTC peer connections/data channels are held in refs and closed on cleanup */
-
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { executeAction, toRealtimeTools } from '@/actions/registry';
 import { currentSlide, useMeeting } from '@/state/meeting-store';
@@ -24,7 +22,7 @@ interface Agent {
   persona: Persona;
   pc: RTCPeerConnection;
   dc: RTCDataChannel;
-  audio: HTMLAudioElement;
+  stream?: MediaStream;
 }
 
 function extractSecret(session: Record<string, unknown>): string | null {
@@ -45,10 +43,28 @@ export function useRealtime() {
   const mic = useRef<MediaStream | null>(null);
   const lastSpeaker = useRef<BoardSeat | null>(null);
   const speaking = useRef(false);
+  // one <audio> element, unlocked during the Start click, that plays whoever is currently speaking
+  const sharedAudio = useRef<HTMLAudioElement | null>(null);
+  const activeRef = useRef<BoardSeat | null>(null);
 
   const agentFor = (seat: BoardSeat) => agents.current.find((a) => a.persona.seat === seat);
   const sendTo = (agent: Agent | undefined, payload: object) =>
     agent?.dc.readyState === 'open' && agent.dc.send(JSON.stringify(payload));
+
+  // route the given agent's audio to the shared element (used when a persona becomes the speaker)
+  const attachAudio = (agent: Agent | undefined) => {
+    const el = sharedAudio.current;
+    if (el && agent?.stream) {
+      el.srcObject = agent.stream;
+      el.play().catch(() => {});
+    }
+  };
+
+  const setActive = (seat: BoardSeat | null) => {
+    activeRef.current = seat;
+    setActiveSpeaker(seat);
+    if (seat) attachAudio(agentFor(seat));
+  };
 
   const configureAgent = useCallback((agent: Agent) => {
     const isChair = agent.persona.seat === CHAIR.seat;
@@ -81,8 +97,9 @@ export function useRealtime() {
     const agent = agentFor(seat);
     if (!agent) return;
     speaking.current = true;
-    setActiveSpeaker(seat);
+    setActive(seat);
     sendTo(agent, { type: 'response.create', response: instructions ? { instructions, tool_choice: 'none' } : {} });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // decide whether the board reacts to the founder's turn, and if so, who
@@ -122,12 +139,12 @@ export function useRealtime() {
         }
         case 'response.created':
           speaking.current = true;
-          setActiveSpeaker(seat);
+          setActive(seat);
           break;
         case 'response.done':
           speaking.current = false;
           lastSpeaker.current = seat;
-          setActiveSpeaker(null);
+          setActive(null);
           break;
         case 'response.output_audio_transcript.done':
           if (evt.transcript) useMeeting.getState().addTranscript({ speaker: 'board', seat, text: evt.transcript });
@@ -151,9 +168,10 @@ export function useRealtime() {
     for (const a of agents.current) {
       a.dc.close();
       a.pc.close();
-      a.audio.srcObject = null;
     }
     agents.current = [];
+    if (sharedAudio.current) sharedAudio.current.srcObject = null;
+    activeRef.current = null;
     mic.current?.getTracks().forEach((t) => t.stop());
     mic.current = null;
     lastSpeaker.current = null;
@@ -183,16 +201,16 @@ export function useRealtime() {
       const model = (session.model as string) ?? 'gpt-realtime-2';
 
       const pc = new RTCPeerConnection();
-      const audio = new Audio();
-      audio.autoplay = true;
+      const agent: Agent = { persona, pc, dc: undefined as unknown as RTCDataChannel };
       pc.ontrack = (e) => {
-        audio.srcObject = e.streams[0];
+        agent.stream = e.streams[0];
+        if (activeRef.current === persona.seat) attachAudio(agent);
       };
       if (stream) stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       else pc.addTransceiver('audio', { direction: 'recvonly' });
 
       const dc = pc.createDataChannel('oai-events');
-      const agent: Agent = { persona, pc, dc, audio };
+      agent.dc = dc;
       dc.onopen = () => configureAgent(agent);
       dc.onmessage = (e) => {
         try {
@@ -219,6 +237,22 @@ export function useRealtime() {
   const connect = useCallback(async () => {
     setStatus('connecting');
     setError(null);
+
+    // create + prime the shared audio element inside the click gesture so playback is unlocked
+    if (!sharedAudio.current) {
+      const el = new Audio();
+      el.autoplay = true;
+      el.setAttribute('playsinline', '');
+      try {
+        el.style.display = 'none';
+        document.body.appendChild(el);
+      } catch {
+        /* detached playback still works in most browsers */
+      }
+      sharedAudio.current = el;
+    }
+    sharedAudio.current.play().catch(() => {});
+
     try {
       let stream: MediaStream | null = null;
       try {
@@ -286,9 +320,10 @@ export function useRealtime() {
     if (!agent) return false;
     sendTo(agent, { type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] } });
     speaking.current = true;
-    setActiveSpeaker(speaker.seat);
+    setActive(speaker.seat);
     sendTo(agent, { type: 'response.create' });
     return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { status, error, muted, activeSpeaker, boardSpeaking: activeSpeaker !== null, connect, disconnect, toggleMute, sendText };
