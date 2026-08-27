@@ -34,13 +34,14 @@ export function AnnotationLayer({ containerRef, slideId }: { containerRef: RefOb
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const marks = annotations.filter((a) => a.slideId === slideId);
 
     const measure = () => {
       const cRect = container.getBoundingClientRect();
       const image = container.querySelector('[data-slide-image]') as HTMLElement | null;
       const next: Record<string, Rect> = {};
 
-      for (const a of slideAnnotations) {
+      for (const a of marks) {
         let el: HTMLElement | null = null;
         if (a.target.metricId) el = container.querySelector(`[data-metric="${a.target.metricId}"]`);
         else if (a.target.claimId) el = container.querySelector(`[data-claim="${a.target.claimId}"]`);
@@ -73,7 +74,7 @@ export function AnnotationLayer({ containerRef, slideId }: { containerRef: RefOb
       container.removeEventListener('scroll', measure);
       window.removeEventListener('resize', measure);
     };
-  }, [containerRef, slideId, slideAnnotations]);
+  }, [containerRef, slideId, annotations]);
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
