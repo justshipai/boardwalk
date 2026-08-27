@@ -42,16 +42,22 @@ pnpm dev
 
 Open http://localhost:3000 and choose **Try the demo**. No account, no upload — it runs a fictional company, Northstar.
 
+### Let ChatGPT run the board
+
+Boardwalk's board actions are real WebMCP tools registered on the page with `document.modelContext.registerTool`, so **any** agent can drive the same live boardroom — not just our voice board. Open the deployed page in **ChatGPT's built-in browser** (ChatGPT Work / Codex) or **Chrome 149+ with WebMCP**, pick **Site tools** in the address bar to see the boardroom's tools, and ask:
+
+> "Run a board review of this deck."
+
+ChatGPT reads the deck (`get_deck`), flags weak assumptions, raises questions, records a decision, and generates the readout — and you watch the Board review workspace fill in real time. The voice board and ChatGPT operate the exact same tools because both go through one shared action registry ([`src/actions/definitions.ts`](src/actions/definitions.ts)).
+
 ### Inspect the WebMCP tools
 
 In the browser console on the meeting page:
 
 ```js
 await document.modelContext.getTools();            // list live tools
-await document.modelContext.__call('get_current_slide', {}); // (polyfill helper) invoke one
+await document.modelContext.__call('get_deck', {}); // (polyfill helper) invoke one
 ```
-
-In Chrome 149+ with WebMCP enabled, or in ChatGPT's in-app browser, the native implementation is used automatically and the built-in agent can discover the same tools.
 
 ## Voice
 
