@@ -50,7 +50,13 @@ function MeetingBody() {
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
-        <BoardSeats speakingSeat={director.speakingSeat} />
+        <div className="flex items-center gap-4">
+          <a href="/" className="flex items-center gap-2 rounded-md px-1 py-0.5 transition hover:opacity-80" title="Home — upload a deck or restart">
+            <span className="h-2.5 w-2.5 rounded-full bg-material" />
+            <span className="text-sm font-semibold tracking-tight">Boardwalk</span>
+          </a>
+          <BoardSeats speakingSeat={director.speakingSeat} />
+        </div>
         <MeetingPhaseBar phase={phase} />
         <ListeningIndicator />
       </header>

@@ -159,6 +159,15 @@ export function useRealtime() {
       channel.onopen = () => {
         pushTools();
         setStatus('connected');
+        // controlled opening: greet and wait, so the board never front-runs the founder with a review
+        send({
+          type: 'response.create',
+          response: {
+            instructions:
+              'Greet the founder warmly in one short sentence and invite them to walk you through the quarter. Do not raise any issue or question, and do not call any tool yet.',
+            tool_choice: 'none',
+          },
+        });
       };
       channel.onmessage = (e) => {
         try {
