@@ -26,6 +26,7 @@ const tlGeo: Record<string, 'rectangle' | 'ellipse' | 'diamond'> = { rectangle: 
 
 export function setEditor(e: Editor | null) {
   editor = e;
+  if (typeof window !== 'undefined') (window as unknown as { __ed?: Editor | null }).__ed = e;
   // nudge subscribers (WebMCP sync) so tool availability reflects the editor being ready
   useCanvasMeta.getState().setShapeCount(e ? e.getCurrentPageShapes().filter((s) => s.type !== 'arrow').length : 0);
 }
