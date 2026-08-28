@@ -77,23 +77,34 @@ function nodeSkeleton(id: string, n: NodeModel) {
   };
 }
 
+// point on a rectangle's border, from its centre toward a target — so arrows stop at the edge
+function borderPoint(cx: number, cy: number, w: number, h: number, tx: number, ty: number, gap: number) {
+  const dx = tx - cx;
+  const dy = ty - cy;
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const scale = 1 / Math.max(Math.abs(dx) / (w / 2), Math.abs(dy) / (h / 2));
+  const len = Math.hypot(dx, dy) * scale;
+  const f = (len + gap) / Math.hypot(dx, dy);
+  return { x: cx + dx * f, y: cy + dy * f };
+}
+
 function edgeSkeleton(e: EdgeModel) {
   const from = nodes.get(e.from);
   const to = nodes.get(e.to);
-  const sx = (from?.x ?? 0) + NODE_W / 2;
-  const sy = (from?.y ?? 0) + NODE_H / 2;
-  const ex = (to?.x ?? 0) + NODE_W / 2;
-  const ey = (to?.y ?? 0) + NODE_H / 2;
+  const scx = (from?.x ?? 0) + NODE_W / 2;
+  const scy = (from?.y ?? 0) + NODE_H / 2;
+  const tcx = (to?.x ?? 0) + NODE_W / 2;
+  const tcy = (to?.y ?? 0) + NODE_H / 2;
+  const sp = borderPoint(scx, scy, NODE_W, NODE_H, tcx, tcy, 6);
+  const ep = borderPoint(tcx, tcy, NODE_W, NODE_H, scx, scy, 8);
   return {
     type: 'arrow',
     id: e.id,
-    x: sx,
-    y: sy,
-    width: ex - sx,
-    height: ey - sy,
+    x: sp.x,
+    y: sp.y,
+    width: ep.x - sp.x,
+    height: ep.y - sp.y,
     strokeColor: '#868e96',
-    start: { id: e.from },
-    end: { id: e.to },
     label: e.label ? { text: e.label, strokeColor: '#adb5bd', fontSize: 14 } : undefined,
   };
 }
@@ -141,6 +152,16 @@ export function findId(query: string): string | null {
 }
 
 export function createNode(input: { label: string; kind?: ShapeKind; color?: AccentColor; x?: number; y?: number }) {
+  // reuse an existing shape with the same label instead of creating a duplicate
+  const q = input.label.trim().toLowerCase();
+  for (const [existingId, n] of nodes) {
+    if (n.label.toLowerCase() === q) {
+      if (input.x !== undefined && input.y !== undefined) nodes.set(existingId, { ...n, x: input.x, y: input.y });
+      pointAt(existingId);
+      rebuild();
+      return { id: existingId, label: n.label };
+    }
+  }
   const id = uid('n');
   const pos = { x: input.x ?? gridPos().x, y: input.y ?? gridPos().y };
   nodes.set(id, { label: input.label, kind: input.kind ?? 'rectangle', color: input.color ?? 'neutral', x: pos.x, y: pos.y });

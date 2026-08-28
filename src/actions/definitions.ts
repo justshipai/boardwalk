@@ -21,17 +21,23 @@ export const boardActions: BoardAction[] = [
   },
   {
     name: 'add_shape',
-    description: 'Add a shape with a label. kind = rectangle, ellipse, diamond, note or text. Returns the new shape id.',
+    description: 'Add a shape with a label. Give x/y to place it yourself (mind maps, wireframes); omit them to auto-place.',
     inputSchema: {
       type: 'object',
-      properties: { label: { type: 'string', description: 'Text on the shape.' }, kind: kindEnum, color: colorEnum },
+      properties: {
+        label: { type: 'string', description: 'Text on the shape.' },
+        kind: kindEnum,
+        color: colorEnum,
+        x: { type: 'number', description: 'Left position on the canvas (0 = far left, ~1400 = right). Optional.' },
+        y: { type: 'number', description: 'Top position (0 = top, ~900 = bottom). Optional.' },
+      },
       required: ['label'],
       additionalProperties: false,
     },
     annotations: { title: 'Add shape', effect: 'A new shape appears on the canvas.' },
     isAvailable: () => true,
-    handler: (args: { label: string; kind?: ShapeKind; color?: AccentColor }) => {
-      const node = createNode({ label: args.label, kind: args.kind, color: args.color });
+    handler: (args: { label: string; kind?: ShapeKind; color?: AccentColor; x?: number; y?: number }) => {
+      const node = createNode({ label: args.label, kind: args.kind, color: args.color, x: args.x, y: args.y });
       if (!node) return { summary: 'Canvas not ready.', data: { added: false } };
       return { summary: `Added "${node.label}".`, data: { id: node.id, label: node.label } };
     },

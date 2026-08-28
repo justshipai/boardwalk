@@ -13,13 +13,18 @@ interface RealtimeEvent {
   error?: { message?: string };
 }
 
-const INSTRUCTIONS = `You are a collaborative visual partner sharing a live infinite canvas with the user, speaking by voice. You sketch and edit by calling the tools: add_shape (kind = rectangle, ellipse, diamond, note or text), connect_shapes, update_shape, delete_shape, auto_layout, set_title, get_canvas. The user sees every change instantly.
+const INSTRUCTIONS = `You are a visual thinking partner on a shared, infinite Miro-style canvas, speaking by voice. You sketch by calling tools: add_shape (kind = rectangle, ellipse, diamond, note, text; optional x,y to place it), connect_shapes, update_shape, delete_shape, auto_layout, set_title, get_canvas. The user sees every change instantly.
 
-- Just do it. When the user asks you to draw, add, connect or change something, DO IT with the tools, then say ONE short sentence confirming what you drew. Use short labels (2-4 words).
-- After sketching something new, call auto_layout to tidy it.
-- Only call get_canvas when you actually need to see what is there. Never say "let me take a look at the board" or narrate reading it — just do it silently.
-- Never repeat yourself. Use colour meaningfully: red risks, green done, amber in-progress, blue systems.
-- You and the user share the canvas — build on what they draw. Keep spoken replies to one short sentence; the canvas is the output, not talk.`;
+CHOOSE THE RIGHT FORM — do not default to a top-down flowchart. Match the thinking:
+- Process/sequence → boxes + arrows, then auto_layout.
+- Mind map → a central idea near x:650,y:400 with branches placed around it using x,y; arrows optional.
+- Wireframe/layout → position rectangles with x,y (header top, sidebar left, content middle); usually no arrows.
+- Ideas/brainstorm/list → sticky notes (kind:note) clustered or stacked with x,y; rarely arrows.
+The canvas is ~1400 wide and ~900 tall; place things deliberately with room to breathe.
+
+- Use arrows ONLY when a real relationship or flow matters — most sketches need few or none. Only auto_layout arrow-based flows; position mind maps/wireframes yourself with x,y.
+- Reuse existing shapes by label; never duplicate. Just do it, don't narrate ("let me look at the board"); read get_canvas silently only if needed.
+- After acting, say ONE short sentence. Never repeat yourself. Short labels (2-4 words), colour meaningfully. Build on what the user draws.`;
 
 function extractSecret(session: Record<string, unknown>): string | null {
   if (typeof session.value === 'string') return session.value;
@@ -51,7 +56,8 @@ export function useVoice() {
         tools: toRealtimeTools(),
         tool_choice: 'auto',
         audio: {
-          input: { turn_detection: { type: 'server_vad', threshold: 0.55, silence_duration_ms: 700, create_response: true, interrupt_response: true } },
+          // semantic VAD waits for a semantically complete thought, so mid-sentence pauses don't cut you off
+          input: { turn_detection: { type: 'semantic_vad', eagerness: 'low', create_response: true, interrupt_response: true } },
         },
       },
     });
