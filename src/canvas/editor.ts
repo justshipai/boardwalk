@@ -13,6 +13,8 @@ interface NodeModel {
   color: AccentColor;
   x: number;
   y: number;
+  w: number;
+  h: number;
 }
 interface EdgeModel {
   id: string;
@@ -29,6 +31,8 @@ let convert: ((skeleton: unknown[]) => unknown[]) | null = null;
 
 const NODE_W = 190;
 const NODE_H = 84;
+const MIN_W = 24;
+const MIN_H = 24;
 let seq = 0;
 const uid = (p: string) => `${p}${(seq++).toString(36)}${Date.now().toString(36).slice(-3)}`;
 
@@ -68,8 +72,8 @@ function nodeSkeleton(id: string, n: NodeModel) {
     id,
     x: n.x,
     y: n.y,
-    width: NODE_W,
-    height: NODE_H,
+    width: n.w,
+    height: n.h,
     strokeColor: stroke[n.color],
     backgroundColor: 'transparent',
     roundness: n.kind === 'note' ? { type: 3 } : undefined,
@@ -91,12 +95,16 @@ function borderPoint(cx: number, cy: number, w: number, h: number, tx: number, t
 function edgeSkeleton(e: EdgeModel) {
   const from = nodes.get(e.from);
   const to = nodes.get(e.to);
-  const scx = (from?.x ?? 0) + NODE_W / 2;
-  const scy = (from?.y ?? 0) + NODE_H / 2;
-  const tcx = (to?.x ?? 0) + NODE_W / 2;
-  const tcy = (to?.y ?? 0) + NODE_H / 2;
-  const sp = borderPoint(scx, scy, NODE_W, NODE_H, tcx, tcy, 6);
-  const ep = borderPoint(tcx, tcy, NODE_W, NODE_H, scx, scy, 8);
+  const fw = from?.w ?? NODE_W;
+  const fh = from?.h ?? NODE_H;
+  const tw = to?.w ?? NODE_W;
+  const th = to?.h ?? NODE_H;
+  const scx = (from?.x ?? 0) + fw / 2;
+  const scy = (from?.y ?? 0) + fh / 2;
+  const tcx = (to?.x ?? 0) + tw / 2;
+  const tcy = (to?.y ?? 0) + th / 2;
+  const sp = borderPoint(scx, scy, fw, fh, tcx, tcy, 6);
+  const ep = borderPoint(tcx, tcy, tw, th, scx, scy, 8);
   return {
     type: 'arrow',
     id: e.id,
@@ -114,7 +122,7 @@ let cursorTimer: ReturnType<typeof setTimeout> | null = null;
 function pointAt(id: string) {
   const n = nodes.get(id);
   if (!n) return;
-  cursor = { x: n.x + NODE_W / 2, y: n.y + NODE_H / 2 };
+  cursor = { x: n.x + n.w / 2, y: n.y + n.h / 2 };
   if (cursorTimer) clearTimeout(cursorTimer);
   cursorTimer = setTimeout(() => {
     cursor = null;
@@ -151,12 +159,18 @@ export function findId(query: string): string | null {
   return null;
 }
 
-export function createNode(input: { label: string; kind?: ShapeKind; color?: AccentColor; x?: number; y?: number }) {
+export function createNode(input: { label: string; kind?: ShapeKind; color?: AccentColor; x?: number; y?: number; w?: number; h?: number }) {
+  const w = input.w !== undefined ? Math.max(MIN_W, Math.round(input.w)) : NODE_W;
+  const h = input.h !== undefined ? Math.max(MIN_H, Math.round(input.h)) : NODE_H;
   // reuse an existing shape with the same label instead of creating a duplicate
   const q = input.label.trim().toLowerCase();
   for (const [existingId, n] of nodes) {
     if (n.label.toLowerCase() === q) {
-      if (input.x !== undefined && input.y !== undefined) nodes.set(existingId, { ...n, x: input.x, y: input.y });
+      const patch = { ...n };
+      if (input.x !== undefined && input.y !== undefined) Object.assign(patch, { x: input.x, y: input.y });
+      if (input.w !== undefined) patch.w = w;
+      if (input.h !== undefined) patch.h = h;
+      nodes.set(existingId, patch);
       pointAt(existingId);
       rebuild();
       return { id: existingId, label: n.label };
@@ -164,7 +178,7 @@ export function createNode(input: { label: string; kind?: ShapeKind; color?: Acc
   }
   const id = uid('n');
   const pos = { x: input.x ?? gridPos().x, y: input.y ?? gridPos().y };
-  nodes.set(id, { label: input.label, kind: input.kind ?? 'rectangle', color: input.color ?? 'neutral', x: pos.x, y: pos.y });
+  nodes.set(id, { label: input.label, kind: input.kind ?? 'rectangle', color: input.color ?? 'neutral', x: pos.x, y: pos.y, w, h });
   pointAt(id);
   rebuild();
   return { id, label: input.label };
@@ -182,11 +196,17 @@ export function connectNodes(sourceQ: string, targetQ: string, label?: string) {
   return id;
 }
 
-export function updateNode(query: string, patch: { label?: string; color?: AccentColor }) {
+export function updateNode(query: string, patch: { label?: string; color?: AccentColor; w?: number; h?: number }) {
   const id = findId(query);
   if (!id) return null;
   const n = nodes.get(id)!;
-  nodes.set(id, { ...n, label: patch.label ?? n.label, color: patch.color ?? n.color });
+  nodes.set(id, {
+    ...n,
+    label: patch.label ?? n.label,
+    color: patch.color ?? n.color,
+    w: patch.w !== undefined ? Math.max(MIN_W, Math.round(patch.w)) : n.w,
+    h: patch.h !== undefined ? Math.max(MIN_H, Math.round(patch.h)) : n.h,
+  });
   pointAt(id);
   rebuild();
   return { id, label: patch.label ?? n.label };
@@ -213,12 +233,12 @@ export function layout() {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: 'TB', nodesep: 80, ranksep: 120, marginx: 60, marginy: 60 });
   g.setDefaultEdgeLabel(() => ({}));
-  nodes.forEach((_n, id) => g.setNode(id, { width: NODE_W, height: NODE_H }));
+  nodes.forEach((n, id) => g.setNode(id, { width: n.w, height: n.h }));
   edges.forEach((e) => g.setEdge(e.from, e.to));
   dagre.layout(g);
   nodes.forEach((n, id) => {
     const p = g.node(id);
-    if (p) nodes.set(id, { ...n, x: Math.round(p.x - NODE_W / 2), y: Math.round(p.y - NODE_H / 2) });
+    if (p) nodes.set(id, { ...n, x: Math.round(p.x - n.w / 2), y: Math.round(p.y - n.h / 2) });
   });
   rebuild();
 }

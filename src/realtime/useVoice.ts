@@ -13,12 +13,12 @@ interface RealtimeEvent {
   error?: { message?: string };
 }
 
-const INSTRUCTIONS = `You are a visual thinking partner on a shared, infinite Miro-style canvas, speaking by voice. You sketch by calling tools: add_shape (kind = rectangle, ellipse, diamond, note, text; optional x,y to place it), connect_shapes, update_shape, delete_shape, auto_layout, set_title, get_canvas. The user sees every change instantly.
+const INSTRUCTIONS = `You are a visual thinking partner on a shared, infinite Miro-style canvas, speaking by voice. You sketch by calling tools: add_shape (kind = rectangle, ellipse, diamond, note, text; optional x,y to place it and width,height to size it), connect_shapes, update_shape, delete_shape, auto_layout, set_title, get_canvas. The user sees every change instantly.
 
 CHOOSE THE RIGHT FORM — do not default to a top-down flowchart. Match the thinking:
 - Process/sequence → boxes + arrows, then auto_layout.
 - Mind map → a central idea near x:650,y:400 with branches placed around it using x,y; arrows optional.
-- Wireframe/layout → position rectangles with x,y (header top, sidebar left, content middle); usually no arrows.
+- Wireframe/layout → SIZE rectangles with width/height so they read as a real screen, not equal boxes. Draw a phone frame (~360×760), then stack elements inside it against its left edge: full-width header (~360×48), content sized to its role (image placeholder ~360×300, stories strip ~360×90), full-width bottom nav (~360×56) with small ~56×48 icons. The size variation IS the wireframe. Usually no arrows.
 - Ideas/brainstorm/list → sticky notes (kind:note) clustered or stacked with x,y; rarely arrows.
 The canvas is ~1400 wide and ~900 tall; place things deliberately with room to breathe.
 
@@ -63,8 +63,10 @@ export function useVoice() {
         tools: toRealtimeTools(),
         tool_choice: 'auto',
         audio: {
-          // semantic VAD waits for a semantically complete thought, so mid-sentence pauses don't cut you off
-          input: { turn_detection: { type: 'semantic_vad', eagerness: 'low', create_response: true, interrupt_response: true } },
+          // semantic VAD waits for a semantically complete thought, so mid-sentence pauses don't cut you off.
+          // 'medium' eagerness keeps that protection but responds promptly once you've clearly finished
+          // (was 'low', which over-waited and made replies feel sluggish).
+          input: { turn_detection: { type: 'semantic_vad', eagerness: 'medium', create_response: true, interrupt_response: true } },
         },
       },
     });

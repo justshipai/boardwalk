@@ -21,7 +21,8 @@ export const boardActions: BoardAction[] = [
   },
   {
     name: 'add_shape',
-    description: 'Add a shape with a label. Give x/y to place it yourself (mind maps, wireframes); omit them to auto-place.',
+    description:
+      'Add a shape with a label. Give x/y to place it and width/height to size it (mind maps, wireframes, screen layouts). Omit x/y to auto-place; omit width/height for the default box.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -30,14 +31,16 @@ export const boardActions: BoardAction[] = [
         color: colorEnum,
         x: { type: 'number', description: 'Left position on the canvas (0 = far left, ~1400 = right). Optional.' },
         y: { type: 'number', description: 'Top position (0 = top, ~900 = bottom). Optional.' },
+        width: { type: 'number', description: 'Width in px. Use it to shape a layout: a full-width header bar, a tall content area, a small icon. Optional.' },
+        height: { type: 'number', description: 'Height in px. Optional.' },
       },
       required: ['label'],
       additionalProperties: false,
     },
     annotations: { title: 'Add shape', effect: 'A new shape appears on the canvas.' },
     isAvailable: () => true,
-    handler: (args: { label: string; kind?: ShapeKind; color?: AccentColor; x?: number; y?: number }) => {
-      const node = createNode({ label: args.label, kind: args.kind, color: args.color, x: args.x, y: args.y });
+    handler: (args: { label: string; kind?: ShapeKind; color?: AccentColor; x?: number; y?: number; width?: number; height?: number }) => {
+      const node = createNode({ label: args.label, kind: args.kind, color: args.color, x: args.x, y: args.y, w: args.width, h: args.height });
       if (!node) return { summary: 'Canvas not ready.', data: { added: false } };
       return { summary: `Added "${node.label}".`, data: { id: node.id, label: node.label } };
     },
@@ -65,17 +68,23 @@ export const boardActions: BoardAction[] = [
   },
   {
     name: 'update_shape',
-    description: 'Rename a shape or change its colour. Target it by id or by its current label.',
+    description: 'Rename, recolour or resize a shape. Target it by id or by its current label.',
     inputSchema: {
       type: 'object',
-      properties: { shape: { type: 'string', description: 'Shape id or label.' }, label: { type: 'string' }, color: colorEnum },
+      properties: {
+        shape: { type: 'string', description: 'Shape id or label.' },
+        label: { type: 'string' },
+        color: colorEnum,
+        width: { type: 'number', description: 'New width in px. Optional.' },
+        height: { type: 'number', description: 'New height in px. Optional.' },
+      },
       required: ['shape'],
       additionalProperties: false,
     },
-    annotations: { title: 'Update shape', effect: 'A shape is renamed or recoloured.' },
+    annotations: { title: 'Update shape', effect: 'A shape is renamed, recoloured or resized.' },
     isAvailable: () => nodeCount() > 0,
-    handler: (args: { shape: string; label?: string; color?: AccentColor }) => {
-      const updated = updateNode(args.shape, { label: args.label, color: args.color });
+    handler: (args: { shape: string; label?: string; color?: AccentColor; width?: number; height?: number }) => {
+      const updated = updateNode(args.shape, { label: args.label, color: args.color, w: args.width, h: args.height });
       if (!updated) return { summary: `No shape "${args.shape}".`, data: { updated: false } };
       return { summary: `Updated "${updated.label}".`, data: { updated: true } };
     },
