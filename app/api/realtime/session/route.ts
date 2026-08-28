@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 // Mints a short-lived Realtime client secret so the browser can open a WebRTC voice session
 // without ever seeing the API key. Returns 501 until OPENAI_API_KEY is set.
 const DEFAULT_MODEL = 'gpt-realtime-2';
-const DEFAULT_VOICE = 'marin';
+const DEFAULT_VOICE = 'cedar';
 const isValidModel = (m: string) => /^gpt-realtime(-\d|$)/.test(m) && m !== 'gpt-realtime-2.1';
 
 export async function POST() {
