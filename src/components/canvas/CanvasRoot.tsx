@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { startWebMcpSync } from '@/actions/webmcp';
 import { useAgent } from '@/agent/useAgent';
 import { useCanvas } from '@/canvas/canvas-store';
+import { useVoice } from '@/realtime/useVoice';
 import { CanvasBoard } from './CanvasBoard';
 import { ToolActivityFeed } from './ToolActivityFeed';
 
@@ -16,6 +17,7 @@ const EXAMPLES = [
 export function CanvasRoot() {
   const started = useRef(false);
   const agent = useAgent();
+  const voice = useVoice();
   const nodes = useCanvas((s) => s.nodes);
   const title = useCanvas((s) => s.title);
   const clear = useCanvas((s) => s.clear);
@@ -60,6 +62,32 @@ export function CanvasRoot() {
               <span className="h-1.5 w-1.5 animate-ping rounded-full bg-brand" /> AI is drawing…
             </span>
           )}
+
+          {voice.status === 'connected' ? (
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 text-xs text-accepted">
+                <span className={`h-2 w-2 rounded-full ${voice.speaking ? 'bg-material' : 'bg-accepted'} ${voice.speaking ? 'animate-ping' : ''}`} />
+                {voice.speaking ? 'Weave is speaking' : 'Listening'}
+              </span>
+              <button type="button" onClick={voice.toggleMute} className="rounded-md border border-border-strong px-2.5 py-1 text-xs text-text-muted transition hover:text-text">
+                {voice.muted ? 'Unmute' : 'Mute'}
+              </button>
+              <button type="button" onClick={voice.disconnect} className="rounded-md border border-border-strong px-2.5 py-1 text-xs text-text-muted transition hover:text-critical">
+                End voice
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={voice.connect}
+              disabled={voice.status === 'connecting'}
+              className="rounded-md border border-border-strong px-2.5 py-1 text-xs font-medium text-text-muted transition hover:text-text disabled:opacity-50"
+              title={voice.error ?? 'Talk to the AI and draw by voice'}
+            >
+              {voice.status === 'connecting' ? 'Connecting…' : '🎙 Talk'}
+            </button>
+          )}
+
           <button type="button" onClick={clear} className="rounded-md border border-border px-2.5 py-1 text-xs text-text-muted transition hover:text-text">
             New canvas
           </button>
