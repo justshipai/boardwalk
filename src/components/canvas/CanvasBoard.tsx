@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -15,6 +15,7 @@ import {
   type NodeChange,
   type EdgeChange,
   type Connection,
+  type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useCanvas } from '@/canvas/canvas-store';
@@ -118,11 +119,24 @@ export function CanvasBoard() {
 
   const onConnect = useCallback((c: Connection) => c.source && c.target && connect(c.source, c.target), [connect]);
 
+  // keep the AI's work in view: gently re-fit whenever nodes are added
+  const rf = useRef<ReactFlowInstance<Node<NodeData>, Edge> | null>(null);
+  const prevCount = useRef(0);
+  useEffect(() => {
+    if (nodes.length > prevCount.current) {
+      const t = setTimeout(() => rf.current?.fitView({ padding: 0.25, duration: 500, maxZoom: 1 }), 250);
+      prevCount.current = nodes.length;
+      return () => clearTimeout(t);
+    }
+    prevCount.current = nodes.length;
+  }, [nodes.length]);
+
   return (
     <ReactFlow
       nodes={rfNodes}
       edges={rfEdges}
       nodeTypes={nodeTypes}
+      onInit={(instance) => (rf.current = instance)}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}

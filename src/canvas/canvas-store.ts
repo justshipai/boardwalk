@@ -109,7 +109,7 @@ export const useCanvas = create<CanvasState>((set, get) => ({
     get().markActed(nodes.map((n) => n.id));
   },
 
-  clear: () => set({ nodes: [], edges: [], actedIds: [] }),
+  clear: () => set({ nodes: [], edges: [], actedIds: [], title: 'Untitled canvas' }),
 
   markActed: (ids) => {
     set({ actedIds: ids });
