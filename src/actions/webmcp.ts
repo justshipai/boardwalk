@@ -1,5 +1,5 @@
 import { useActivity } from '@/state/activity-store';
-import { useMeeting } from '@/state/meeting-store';
+import { useCanvas } from '@/canvas/canvas-store';
 import { ensureModelContext, type McpToolHandle } from '@/webmcp/polyfill';
 import { boardActions } from './definitions';
 import { executeAction, toWebMcpResult } from './registry';
@@ -11,8 +11,8 @@ export function startWebMcpSync(): () => void {
   const handles = new Map<string, McpToolHandle>();
 
   const sync = () => {
-    const meeting = useMeeting.getState();
-    const desired = new Set(boardActions.filter((a) => a.isAvailable(meeting)).map((a) => a.name));
+    const state = useCanvas.getState();
+    const desired = new Set(boardActions.filter((a) => a.isAvailable(state)).map((a) => a.name));
 
     for (const action of boardActions) {
       const isRegistered = handles.has(action.name);
@@ -39,7 +39,7 @@ export function startWebMcpSync(): () => void {
   };
 
   sync();
-  const unsubscribe = useMeeting.subscribe(sync);
+  const unsubscribe = useCanvas.subscribe(sync);
   return () => {
     unsubscribe();
     for (const handle of handles.values()) handle.unregister();

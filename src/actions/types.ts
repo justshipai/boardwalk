@@ -1,4 +1,4 @@
-import type { Meeting } from '@/state/types';
+import type { CanvasState } from '@/canvas/canvas-store';
 
 export interface JSONSchema {
   type: 'object';
@@ -25,7 +25,6 @@ export interface BoardAction<Args = any> {
   description: string;
   inputSchema: JSONSchema;
   annotations: ActionAnnotations;
-  // self-contained availability predicate — drives the dynamic WebMCP lifecycle (§8.4)
-  isAvailable: (meeting: Meeting) => boolean;
-  handler: (args: Args, meeting: Meeting) => ActionResult;
+  isAvailable: (state: CanvasState) => boolean;
+  handler: (args: Args, state: CanvasState) => ActionResult;
 }

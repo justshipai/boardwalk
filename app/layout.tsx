@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Boardwalk — the board meeting before the board meeting",
+  title: "Weave — a canvas you and AI draw on together",
   description:
-    "Present your update to an AI board that challenges the numbers, questions the story and remembers what you promised last time.",
+    "A live diagramming canvas an AI operates alongside you through WebMCP tools. Talk to it, draw with it, or let ChatGPT drive it.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

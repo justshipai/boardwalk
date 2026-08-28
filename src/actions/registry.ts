@@ -1,5 +1,5 @@
 import { useActivity } from '@/state/activity-store';
-import { useMeeting } from '@/state/meeting-store';
+import { useCanvas } from '@/canvas/canvas-store';
 import { actionByName, boardActions } from './definitions';
 import type { ActionResult } from './types';
 
@@ -14,9 +14,9 @@ export function executeAction(name: string, rawArgs: unknown): ExecuteOutcome {
   const action = actionByName.get(name);
   if (!action) return { ok: false, summary: `Unknown tool "${name}".`, error: 'unknown_tool' };
 
-  const meeting = useMeeting.getState();
-  if (!action.isAvailable(meeting)) {
-    return { ok: false, summary: `Tool "${name}" is not available in the current meeting state.`, error: 'unavailable' };
+  const state = useCanvas.getState();
+  if (!action.isAvailable(state)) {
+    return { ok: false, summary: `Tool "${name}" is not available right now.`, error: 'unavailable' };
   }
 
   const args = (rawArgs ?? {}) as Record<string, unknown>;
@@ -26,7 +26,7 @@ export function executeAction(name: string, rawArgs: unknown): ExecuteOutcome {
   }
 
   try {
-    const result = action.handler(args, meeting);
+    const result = action.handler(args, state);
     useActivity.getState().log({ kind: 'invoke', tool: name, detail: result.summary });
     return { ok: true, ...result };
   } catch (err) {
@@ -45,15 +45,23 @@ export function toWebMcpResult(outcome: ExecuteOutcome) {
 
 // OpenAI Realtime function-tool definitions, derived from the same registry (used when voice lands)
 export function toRealtimeTools() {
-  const meeting = useMeeting.getState();
+  const state = useCanvas.getState();
   return boardActions
-    .filter((a) => a.isAvailable(meeting))
+    .filter((a) => a.isAvailable(state))
     .map((a) => ({
       type: 'function' as const,
       name: a.name,
       description: a.description,
       parameters: a.inputSchema,
     }));
+}
+
+// OpenAI Chat Completions tool definitions (used by the in-app text agent)
+export function toChatTools() {
+  return boardActions.map((a) => ({
+    type: 'function' as const,
+    function: { name: a.name, description: a.description, parameters: a.inputSchema },
+  }));
 }
 
 export { boardActions };
