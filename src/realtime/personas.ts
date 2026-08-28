@@ -42,9 +42,22 @@ export const CHAIR: Persona = personas.find((p) => p.seat === 'independent-chair
 
 export const personaBySeat = new Map(personas.map((p) => [p.seat, p]));
 
+// if the founder addressed a specific board member by first name or role, return them
+export function addressedPersona(text: string): Persona | null {
+  const lower = text.toLowerCase();
+  return (
+    personas.find((p) => {
+      const first = p.name.split(' ')[0].toLowerCase();
+      return new RegExp(`\\b${first}\\b`).test(lower) || lower.includes(p.role.toLowerCase());
+    }) ?? null
+  );
+}
+
 // pick the board member whose remit best fits what the founder just said; avoid repeating the
 // same speaker back-to-back unless they clearly own the topic
 export function pickSpeaker(text: string, lastSeat: BoardSeat | null): Persona {
+  const addressed = addressedPersona(text);
+  if (addressed) return addressed;
   const lower = text.toLowerCase();
   const scored = personas.map((p) => ({ p, score: p.keywords.reduce((n, k) => (lower.includes(k) ? n + 1 : n), 0) }));
   scored.sort((a, b) => b.score - a.score);

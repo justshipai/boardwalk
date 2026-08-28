@@ -5,7 +5,7 @@ import { executeAction, toRealtimeTools } from '@/actions/registry';
 import { currentSlide, useMeeting } from '@/state/meeting-store';
 import type { BoardSeat } from '@/state/types';
 import { buildInstructions } from './instructions';
-import { CHAIR, personas, pickSpeaker, type Persona } from './personas';
+import { addressedPersona, CHAIR, personas, pickSpeaker, type Persona } from './personas';
 
 export type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -75,6 +75,7 @@ export function useRealtime() {
         instructions: buildInstructions(agent.persona, useMeeting.getState().intensity),
         tools: toRealtimeTools(),
         tool_choice: 'auto',
+        max_output_tokens: 160, // keep spoken turns to a sentence or two
         audio: {
           input: {
             turn_detection: {
@@ -107,6 +108,12 @@ export function useRealtime() {
     (founderText: string) => {
       if (speaking.current) return; // never talk over whoever is speaking
       const text = founderText.trim();
+      // if the founder addressed someone by name, that member always answers
+      const named = addressedPersona(text);
+      if (named) {
+        trigger(named.seat);
+        return;
+      }
       const speaker = pickSpeaker(text, lastSpeaker.current);
       const relevant = text.includes('?') || speaker.keywords.some((k) => text.toLowerCase().includes(k));
       // stay silent while the founder is simply presenting; only step in when it's relevant to a seat
