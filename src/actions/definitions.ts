@@ -1,14 +1,4 @@
-import {
-  clearCanvas,
-  connectNodes,
-  createNode,
-  deleteNode,
-  hasEditor,
-  layout,
-  nodeCount,
-  readCanvas,
-  updateNode,
-} from '@/canvas/editor';
+import { clearCanvas, connectNodes, createNode, deleteNode, layout, nodeCount, readCanvas, updateNode } from '@/canvas/editor';
 import { ACCENTS, SHAPE_KINDS, type AccentColor, type ShapeKind } from '@/canvas/types';
 import { useCanvasMeta } from '@/canvas/stores';
 import type { BoardAction } from './types';
@@ -39,7 +29,7 @@ export const boardActions: BoardAction[] = [
       additionalProperties: false,
     },
     annotations: { title: 'Add shape', effect: 'A new shape appears on the canvas.' },
-    isAvailable: () => hasEditor(),
+    isAvailable: () => true,
     handler: (args: { label: string; kind?: ShapeKind; color?: AccentColor }) => {
       const node = createNode({ label: args.label, kind: args.kind, color: args.color });
       if (!node) return { summary: 'Canvas not ready.', data: { added: false } };
