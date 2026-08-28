@@ -1,5 +1,3 @@
-import type { CanvasState } from '@/canvas/canvas-store';
-
 export interface JSONSchema {
   type: 'object';
   properties: Record<string, unknown>;
@@ -15,7 +13,6 @@ export interface ActionResult {
 export interface ActionAnnotations {
   title: string;
   readOnlyHint?: boolean;
-  // human-readable description of the visible side effect, surfaced to agents and the activity feed
   effect?: string;
 }
 
@@ -25,6 +22,6 @@ export interface BoardAction<Args = any> {
   description: string;
   inputSchema: JSONSchema;
   annotations: ActionAnnotations;
-  isAvailable: (state: CanvasState) => boolean;
-  handler: (args: Args, state: CanvasState) => ActionResult;
+  isAvailable: () => boolean;
+  handler: (args: Args) => ActionResult;
 }

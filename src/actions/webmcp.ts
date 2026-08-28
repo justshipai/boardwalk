@@ -1,18 +1,17 @@
 import { useActivity } from '@/state/activity-store';
-import { useCanvas } from '@/canvas/canvas-store';
+import { useCanvasMeta } from '@/canvas/stores';
 import { ensureModelContext, type McpToolHandle } from '@/webmcp/polyfill';
 import { boardActions } from './definitions';
 import { executeAction, toWebMcpResult } from './registry';
 
-// Syncs the set of registered WebMCP tools to the current meeting state, implementing the
-// dynamic tool lifecycle (§8.4): tools appear and disappear as the meeting moves through its phases.
+// Syncs the set of registered WebMCP tools to the canvas state: tools appear and disappear as the
+// canvas fills (e.g. connect_shapes only once there are two shapes to connect).
 export function startWebMcpSync(): () => void {
   const modelContext = ensureModelContext();
   const handles = new Map<string, McpToolHandle>();
 
   const sync = () => {
-    const state = useCanvas.getState();
-    const desired = new Set(boardActions.filter((a) => a.isAvailable(state)).map((a) => a.name));
+    const desired = new Set(boardActions.filter((a) => a.isAvailable()).map((a) => a.name));
 
     for (const action of boardActions) {
       const isRegistered = handles.has(action.name);
@@ -39,7 +38,7 @@ export function startWebMcpSync(): () => void {
   };
 
   sync();
-  const unsubscribe = useCanvas.subscribe(sync);
+  const unsubscribe = useCanvasMeta.subscribe(sync);
   return () => {
     unsubscribe();
     for (const handle of handles.values()) handle.unregister();

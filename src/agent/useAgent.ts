@@ -2,21 +2,20 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { executeAction, toChatTools } from '@/actions/registry';
-import { useCanvas } from '@/canvas/canvas-store';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
-const SYSTEM = `You are a collaborative diagramming partner sharing a live canvas with the user. You build and edit the canvas ONLY by calling the provided tools (add_node, connect_nodes, update_node, auto_layout, delete_node, set_title, get_canvas). Every tool call is shown to the user instantly.
+const SYSTEM = `You are a collaborative visual partner sharing a live infinite canvas with the user, like a Miro or tldraw board. You sketch and edit ONLY by calling the tools: add_shape (kind = rectangle, ellipse, diamond, note or text), connect_shapes, update_shape, delete_shape, auto_layout, set_title, get_canvas. Every call shows on the canvas instantly.
 
-Guidelines:
-- When asked to design, map or diagram something, add the nodes, connect them into a flow, then call auto_layout to tidy it. Use short labels (2-4 words).
-- Before changing an existing diagram, call get_canvas first, and refer to nodes by their label.
-- Use colour meaningfully: red for risks/problems, green for done/approved, amber for in-progress, blue for systems. Keep it clean and readable.
-- You and the user edit the SAME canvas together — build on what they have already added.
-- Keep written replies to ONE short sentence. The diagram is the output, not a wall of text.`;
+How to work:
+- Just do it. When asked to sketch, map, diagram or plan something, add the shapes, connect them, then call auto_layout — without narrating your steps. Use short labels (2-4 words). Use notes for ideas, rectangles for components/steps, diamonds for decisions, text for headings.
+- Only call get_canvas when you genuinely need to see what is already there (e.g. before editing an existing sketch). Do NOT say things like "let me take a look at the board" — just read it silently if needed.
+- Use colour meaningfully: red for risks, green for done, amber for in-progress, blue for systems.
+- Build on what the user has already drawn; you share the canvas.
+- Keep every written reply to ONE short sentence, and never repeat yourself. The canvas is the output, not chat.`;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RawMessage = Record<string, any>;
@@ -39,7 +38,6 @@ export function useAgent() {
 
     try {
       for (let i = 0; i < 8; i++) {
-        useCanvas.getState().setPresence({ actor: 'ai', x: 0, y: 0, label: 'AI' });
         const res = await fetch('/api/agent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -77,7 +75,6 @@ export function useAgent() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
-      useCanvas.getState().setPresence({ actor: null, x: 0, y: 0 });
       busyRef.current = false;
       setBusy(false);
     }

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { startWebMcpSync } from '@/actions/webmcp';
 import { useAgent } from '@/agent/useAgent';
-import { useCanvas } from '@/canvas/canvas-store';
+import { clearCanvas } from '@/canvas/editor';
+import { useCanvasMeta } from '@/canvas/stores';
 import { useVoice } from '@/realtime/useVoice';
 import { CanvasBoard } from './CanvasBoard';
 import { ToolActivityFeed } from './ToolActivityFeed';
@@ -18,10 +19,13 @@ export function CanvasRoot() {
   const started = useRef(false);
   const agent = useAgent();
   const voice = useVoice();
-  const nodes = useCanvas((s) => s.nodes);
-  const title = useCanvas((s) => s.title);
-  const clear = useCanvas((s) => s.clear);
-  const setTitle = useCanvas((s) => s.setTitle);
+  const shapeCount = useCanvasMeta((s) => s.shapeCount);
+  const title = useCanvasMeta((s) => s.title);
+  const setTitle = useCanvasMeta((s) => s.setTitle);
+  const clear = () => {
+    clearCanvas();
+    setTitle('Untitled canvas');
+  };
   const [input, setInput] = useState('');
 
   useEffect(() => {
@@ -97,7 +101,7 @@ export function CanvasRoot() {
       <div className="flex min-h-0 flex-1">
         <div className="relative min-w-0 flex-1">
           <CanvasBoard />
-          {nodes.length === 0 && (
+          {shapeCount === 0 && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <p className="max-w-xs text-center text-sm text-text-faint">
                 Blank canvas. Ask the AI to sketch something, drag boxes yourself, or drive it from ChatGPT.

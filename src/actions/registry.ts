@@ -1,5 +1,4 @@
 import { useActivity } from '@/state/activity-store';
-import { useCanvas } from '@/canvas/canvas-store';
 import { actionByName, boardActions } from './definitions';
 import type { ActionResult } from './types';
 
@@ -14,8 +13,7 @@ export function executeAction(name: string, rawArgs: unknown): ExecuteOutcome {
   const action = actionByName.get(name);
   if (!action) return { ok: false, summary: `Unknown tool "${name}".`, error: 'unknown_tool' };
 
-  const state = useCanvas.getState();
-  if (!action.isAvailable(state)) {
+  if (!action.isAvailable()) {
     return { ok: false, summary: `Tool "${name}" is not available right now.`, error: 'unavailable' };
   }
 
@@ -26,7 +24,7 @@ export function executeAction(name: string, rawArgs: unknown): ExecuteOutcome {
   }
 
   try {
-    const result = action.handler(args, state);
+    const result = action.handler(args);
     useActivity.getState().log({ kind: 'invoke', tool: name, detail: result.summary });
     return { ok: true, ...result };
   } catch (err) {
@@ -45,9 +43,8 @@ export function toWebMcpResult(outcome: ExecuteOutcome) {
 
 // OpenAI Realtime function-tool definitions, derived from the same registry (used when voice lands)
 export function toRealtimeTools() {
-  const state = useCanvas.getState();
   return boardActions
-    .filter((a) => a.isAvailable(state))
+    .filter((a) => a.isAvailable())
     .map((a) => ({
       type: 'function' as const,
       name: a.name,

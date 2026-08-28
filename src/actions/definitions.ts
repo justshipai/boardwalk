@@ -1,148 +1,135 @@
-import { useCanvas } from '@/canvas/canvas-store';
-import { ACCENTS, NODE_KINDS, type AccentColor, type NodeKind } from '@/canvas/types';
+import {
+  clearCanvas,
+  connectNodes,
+  createNode,
+  deleteNode,
+  hasEditor,
+  layout,
+  nodeCount,
+  readCanvas,
+  updateNode,
+} from '@/canvas/editor';
+import { ACCENTS, SHAPE_KINDS, type AccentColor, type ShapeKind } from '@/canvas/types';
+import { useCanvasMeta } from '@/canvas/stores';
 import type { BoardAction } from './types';
 
 const empty = { type: 'object' as const, properties: {}, additionalProperties: false };
 const colorEnum = { type: 'string', enum: ACCENTS, description: 'neutral, blue, green, amber, red or purple.' };
-const kindEnum = { type: 'string', enum: NODE_KINDS, description: 'card, start, end, decision or sticky.' };
-
-const store = () => useCanvas.getState();
+const kindEnum = { type: 'string', enum: SHAPE_KINDS, description: 'rectangle, ellipse, diamond, note or text.' };
 
 export const boardActions: BoardAction[] = [
   {
     name: 'get_canvas',
-    description: 'Read the whole canvas: title, and every node (id, label, kind, colour) and connection between them.',
+    description: 'Read the canvas: the title, every shape (id, label, kind, colour) and the arrows connecting them.',
     inputSchema: empty,
     annotations: { title: 'Read canvas', readOnlyHint: true },
     isAvailable: () => true,
-    handler: (_args, s) => ({
-      summary: `${s.nodes.length} node(s), ${s.edges.length} connection(s).`,
-      data: {
-        title: s.title,
-        nodes: s.nodes.map((n) => ({ id: n.id, label: n.label, kind: n.kind, color: n.color })),
-        edges: s.edges.map((e) => ({ id: e.id, from: e.source, to: e.target, label: e.label })),
-      },
-    }),
+    handler: () => {
+      const { nodes, edges } = readCanvas();
+      return { summary: `${nodes.length} shape(s), ${edges.length} connection(s).`, data: { title: useCanvasMeta.getState().title, nodes, edges } };
+    },
   },
   {
-    name: 'add_node',
-    description: 'Add a box to the canvas with a label. Optionally set its kind and colour. Returns the new node id.',
+    name: 'add_shape',
+    description: 'Add a shape with a label. kind = rectangle, ellipse, diamond, note or text. Returns the new shape id.',
     inputSchema: {
       type: 'object',
-      properties: { label: { type: 'string', description: 'Text on the box.' }, kind: kindEnum, color: colorEnum },
+      properties: { label: { type: 'string', description: 'Text on the shape.' }, kind: kindEnum, color: colorEnum },
       required: ['label'],
       additionalProperties: false,
     },
-    annotations: { title: 'Add node', effect: 'A new box appears on the canvas.' },
-    isAvailable: () => true,
-    handler: (args: { label: string; kind?: NodeKind; color?: AccentColor }) => {
-      const node = store().addNode({ label: args.label, kind: args.kind, color: args.color });
+    annotations: { title: 'Add shape', effect: 'A new shape appears on the canvas.' },
+    isAvailable: () => hasEditor(),
+    handler: (args: { label: string; kind?: ShapeKind; color?: AccentColor }) => {
+      const node = createNode({ label: args.label, kind: args.kind, color: args.color });
+      if (!node) return { summary: 'Canvas not ready.', data: { added: false } };
       return { summary: `Added "${node.label}".`, data: { id: node.id, label: node.label } };
     },
   },
   {
-    name: 'connect_nodes',
-    description: 'Draw an arrow between two nodes (by id or by label), with an optional label on the arrow.',
+    name: 'connect_shapes',
+    description: 'Draw an arrow between two shapes (by id or label), with an optional label on the arrow.',
     inputSchema: {
       type: 'object',
       properties: {
-        source: { type: 'string', description: 'Start node id or label.' },
-        target: { type: 'string', description: 'End node id or label.' },
+        source: { type: 'string', description: 'Start shape id or label.' },
+        target: { type: 'string', description: 'End shape id or label.' },
         label: { type: 'string', description: 'Optional text on the arrow.' },
       },
       required: ['source', 'target'],
       additionalProperties: false,
     },
-    annotations: { title: 'Connect nodes', effect: 'An arrow is drawn between two boxes.' },
-    isAvailable: (s) => s.nodes.length >= 2,
+    annotations: { title: 'Connect shapes', effect: 'An arrow is drawn between two shapes.' },
+    isAvailable: () => nodeCount() >= 2,
     handler: (args: { source: string; target: string; label?: string }) => {
-      const s = store();
-      const from = s.find(args.source);
-      const to = s.find(args.target);
-      if (!from || !to) return { summary: `Could not find ${!from ? args.source : args.target}.`, data: { connected: false } };
-      const edge = s.connect(from.id, to.id, args.label);
-      if (!edge) return { summary: 'Those are already connected.', data: { connected: false } };
-      return { summary: `Connected "${from.label}" → "${to.label}".`, data: { connected: true, id: edge.id } };
+      const edge = connectNodes(args.source, args.target, args.label);
+      if (!edge) return { summary: `Could not connect ${args.source} → ${args.target}.`, data: { connected: false } };
+      return { summary: `Connected ${args.source} → ${args.target}.`, data: { connected: true } };
     },
   },
   {
-    name: 'update_node',
-    description: 'Rename a node or change its colour or kind. Target it by id or by label.',
+    name: 'update_shape',
+    description: 'Rename a shape or change its colour. Target it by id or by its current label.',
     inputSchema: {
       type: 'object',
-      properties: {
-        node: { type: 'string', description: 'Node id or current label.' },
-        label: { type: 'string', description: 'New label.' },
-        color: colorEnum,
-        kind: kindEnum,
-      },
-      required: ['node'],
+      properties: { shape: { type: 'string', description: 'Shape id or label.' }, label: { type: 'string' }, color: colorEnum },
+      required: ['shape'],
       additionalProperties: false,
     },
-    annotations: { title: 'Update node', effect: 'A box is renamed or recoloured.' },
-    isAvailable: (s) => s.nodes.length > 0,
-    handler: (args: { node: string; label?: string; color?: AccentColor; kind?: NodeKind }) => {
-      const s = store();
-      const node = s.find(args.node);
-      if (!node) return { summary: `No node "${args.node}".`, data: { updated: false } };
-      const updated = s.updateNode(node.id, { label: args.label, color: args.color, kind: args.kind });
-      return { summary: `Updated "${updated?.label ?? node.label}".`, data: { updated: true, id: node.id } };
+    annotations: { title: 'Update shape', effect: 'A shape is renamed or recoloured.' },
+    isAvailable: () => nodeCount() > 0,
+    handler: (args: { shape: string; label?: string; color?: AccentColor }) => {
+      const updated = updateNode(args.shape, { label: args.label, color: args.color });
+      if (!updated) return { summary: `No shape "${args.shape}".`, data: { updated: false } };
+      return { summary: `Updated "${updated.label}".`, data: { updated: true } };
     },
   },
   {
-    name: 'delete_node',
-    description: 'Remove a node (by id or label) and any arrows attached to it.',
+    name: 'delete_shape',
+    description: 'Remove a shape (by id or label) and any arrows attached to it.',
     inputSchema: {
       type: 'object',
-      properties: { node: { type: 'string', description: 'Node id or label.' } },
-      required: ['node'],
+      properties: { shape: { type: 'string', description: 'Shape id or label.' } },
+      required: ['shape'],
       additionalProperties: false,
     },
-    annotations: { title: 'Delete node', effect: 'A box and its arrows are removed.' },
-    isAvailable: (s) => s.nodes.length > 0,
-    handler: (args: { node: string }) => {
-      const s = store();
-      const node = s.find(args.node);
-      if (!node) return { summary: `No node "${args.node}".`, data: { deleted: false } };
-      s.deleteNode(node.id);
-      return { summary: `Deleted "${node.label}".`, data: { deleted: true } };
+    annotations: { title: 'Delete shape', effect: 'A shape and its arrows are removed.' },
+    isAvailable: () => nodeCount() > 0,
+    handler: (args: { shape: string }) => {
+      const ok = deleteNode(args.shape);
+      return { summary: ok ? `Deleted "${args.shape}".` : `No shape "${args.shape}".`, data: { deleted: ok } };
     },
   },
   {
     name: 'auto_layout',
-    description: 'Automatically arrange all nodes into a clean top-to-bottom flow based on their connections.',
+    description: 'Automatically arrange all shapes into a clean top-to-bottom flow based on their arrows.',
     inputSchema: empty,
     annotations: { title: 'Auto layout', effect: 'The whole diagram rearranges into a tidy layout.' },
-    isAvailable: (s) => s.nodes.length > 0,
+    isAvailable: () => nodeCount() > 0,
     handler: () => {
-      store().layout();
-      return { summary: 'Arranged the diagram.', data: { laidOut: true } };
+      layout();
+      return { summary: 'Arranged the canvas.', data: { laidOut: true } };
     },
   },
   {
     name: 'set_title',
     description: 'Set the title of the canvas.',
-    inputSchema: {
-      type: 'object',
-      properties: { title: { type: 'string' } },
-      required: ['title'],
-      additionalProperties: false,
-    },
+    inputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'], additionalProperties: false },
     annotations: { title: 'Set title', effect: 'The canvas title changes.' },
     isAvailable: () => true,
     handler: (args: { title: string }) => {
-      store().setTitle(args.title);
+      useCanvasMeta.getState().setTitle(args.title);
       return { summary: `Titled "${args.title}".`, data: { title: args.title } };
     },
   },
   {
     name: 'clear_canvas',
-    description: 'Remove every node and connection to start from a blank canvas.',
+    description: 'Remove every shape and arrow to start from a blank canvas.',
     inputSchema: empty,
     annotations: { title: 'Clear canvas', effect: 'The canvas is emptied.' },
-    isAvailable: (s) => s.nodes.length > 0,
+    isAvailable: () => nodeCount() > 0,
     handler: () => {
-      store().clear();
+      clearCanvas();
       return { summary: 'Cleared the canvas.', data: { cleared: true } };
     },
   },
