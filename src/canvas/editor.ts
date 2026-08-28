@@ -78,11 +78,19 @@ function nodeSkeleton(id: string, n: NodeModel) {
 }
 
 function edgeSkeleton(e: EdgeModel) {
+  const from = nodes.get(e.from);
+  const to = nodes.get(e.to);
+  const sx = (from?.x ?? 0) + NODE_W / 2;
+  const sy = (from?.y ?? 0) + NODE_H / 2;
+  const ex = (to?.x ?? 0) + NODE_W / 2;
+  const ey = (to?.y ?? 0) + NODE_H / 2;
   return {
     type: 'arrow',
     id: e.id,
-    x: 0,
-    y: 0,
+    x: sx,
+    y: sy,
+    width: ex - sx,
+    height: ey - sy,
     strokeColor: '#868e96',
     start: { id: e.from },
     end: { id: e.to },
