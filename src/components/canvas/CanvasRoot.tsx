@@ -19,7 +19,6 @@ export function CanvasRoot() {
   const started = useRef(false);
   const agent = useAgent();
   const voice = useVoice();
-  const shapeCount = useCanvasMeta((s) => s.shapeCount);
   const title = useCanvasMeta((s) => s.title);
   const setTitle = useCanvasMeta((s) => s.setTitle);
   const clear = () => {
@@ -101,13 +100,6 @@ export function CanvasRoot() {
       <div className="flex min-h-0 flex-1">
         <div className="relative min-w-0 flex-1">
           <CanvasBoard />
-          {shapeCount === 0 && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <p className="max-w-xs text-center text-sm text-text-faint">
-                Blank canvas. Ask the AI to sketch something, drag boxes yourself, or drive it from ChatGPT.
-              </p>
-            </div>
-          )}
         </div>
 
         <aside className="flex w-[360px] shrink-0 flex-col border-l border-border">
