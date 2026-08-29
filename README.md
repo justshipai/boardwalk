@@ -12,7 +12,7 @@ This is an entry to the 2026 OpenAI WebMCP Challenge.
 
 A board meeting combines three things chat and document-review tools handle badly together: rich source material spread across slides and metrics, a live high-pressure conversation, and a **shared visual state both parties inspect and change**.
 
-Boardwalk's board doesn't describe changes in a chat pane — it *makes* them in the live page: it focuses a metric, flags an unsupported claim on the slide, resurfaces a prior commitment, and drafts a decision for you to accept or reject. WebMCP is what lets the agent reach into the same interface the human is using instead of replacing it. Because the tools are registered on the page with `document.modelContext.registerTool`, the built-in browser agents in ChatGPT and Codex can discover and drive the exact same boardroom — proving Boardwalk is genuinely agent-native, not a private voice agent wearing a WebMCP badge.
+Boardwalk's board doesn't describe changes in a chat pane — it *makes* them in the live page: it focuses a metric, highlights the exact words it disputes and leaves a compact board note, resurfaces a prior commitment, and drafts a decision for you to accept or reject. WebMCP is what lets the agent reach into the same interface the human is using instead of replacing it. Because the tools are registered on the page with `document.modelContext.registerTool`, the built-in browser agents in ChatGPT and Codex can discover and drive the exact same boardroom — proving Boardwalk is genuinely agent-native, not a private voice agent wearing a WebMCP badge.
 
 ## The single action registry
 
@@ -24,9 +24,9 @@ Every board action is defined **once** in [`src/actions/definitions.ts`](src/act
 
 `executeAction()` in [`src/actions/registry.ts`](src/actions/registry.ts) is the **only** mutation path for agent-initiated changes, so the voice board and ChatGPT can never drift into different behaviour.
 
-### Tool catalogue (12 tools)
+### Tool catalogue (13 tools)
 
-- **Read** (`readOnlyHint`): `get_meeting_context`, `get_current_slide`, `get_metric_detail`, `get_previous_commitments`
+- **Read** (`readOnlyHint`): `get_meeting_context`, `get_deck`, `get_current_slide`, `get_metric_detail`, `get_previous_commitments`
 - **Interaction**: `focus_evidence`, `raise_board_question`, `flag_assumption`, `request_metric_drilldown`, `propose_commitment`, `record_decision`, `set_meeting_phase`, `generate_board_readout`
 
 ### Dynamic tool lifecycle

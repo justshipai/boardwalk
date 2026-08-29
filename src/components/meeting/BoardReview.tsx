@@ -10,12 +10,14 @@ function ConcernCard({ concern }: { concern: Intervention }) {
   const setStatus = useMeeting((s) => s.setInterventionStatus);
   const goToSlide = useMeeting((s) => s.goToSlide);
   const focusMetric = useMeeting((s) => s.focusMetric);
+  const focusClaim = useMeeting((s) => s.focusClaim);
   const style = severityStyle[concern.severity];
   const resolved = concern.status !== 'open';
 
   const reveal = () => {
     if (concern.slideId) goToSlide(concern.slideId);
     if (concern.metricId) focusMetric(concern.metricId);
+    if (concern.claimId) focusClaim(concern.claimId);
   };
 
   return (

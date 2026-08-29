@@ -87,6 +87,9 @@ export interface Intervention {
   seat: BoardSeat;
   slideId?: string;
   metricId?: string;
+  // A line-level source target. On uploaded decks this maps to a normalized PDF text region;
+  // on the structured demo it maps to a bullet rendered in the stage.
+  claimId?: string;
   statement: string;
   whyItMatters: string;
   severity: Severity;
@@ -128,6 +131,7 @@ export interface Meeting {
   meetingStarted: boolean;
   currentSlideId: string | null;
   focusedMetricId: string | null;
+  focusedClaimId: string | null;
   slides: Slide[];
   commitments: Commitment[];
   interventions: Intervention[];

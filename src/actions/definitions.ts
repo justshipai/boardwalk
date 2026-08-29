@@ -1,5 +1,5 @@
 import { currentSlide, findMetric, useMeeting } from '@/state/meeting-store';
-import type { BoardSeat, InterventionKind, Meeting, Severity } from '@/state/types';
+import type { BoardSeat, Claim, InterventionKind, Meeting, Severity, Slide } from '@/state/types';
 import { buildReadout } from './readout';
 import type { BoardAction } from './types';
 
@@ -14,6 +14,12 @@ const empty = { type: 'object' as const, properties: {}, additionalProperties: f
 
 function slideText(s: Meeting['slides'][number]): string {
   return s.pageText ?? [s.narrative, ...s.bullets].filter(Boolean).join('. ');
+}
+
+// Every slide offers stable source targets. Uploaded PDFs retain their extracted line geometry;
+// the structured demo derives one target per bullet so the same tools work in both modes.
+function slideClaims(slide: Slide): Claim[] {
+  return slide.claims?.length ? slide.claims : slide.bullets.map((text, index) => ({ id: `${slide.id}-b${index}`, text }));
 }
 
 function reviewState(m: Meeting) {
@@ -68,6 +74,7 @@ export const boardActions: BoardAction[] = [
           index: s.index,
           title: s.title,
           text: slideText(s),
+          claims: slideClaims(s).map(({ id, text, region }) => ({ id, text, region })),
           metrics: s.metrics.map((x) => ({ id: x.id, label: x.label, current: x.current, unit: x.unit, trend: x.trend })),
         })),
       },
@@ -90,6 +97,7 @@ export const boardActions: BoardAction[] = [
           title: slide.title,
           text: slideText(slide),
           bullets: slide.bullets,
+          claims: slideClaims(slide).map(({ id, text, region }) => ({ id, text, region })),
           metrics: slide.metrics.map((x) => ({ id: x.id, label: x.label, current: x.current, unit: x.unit, trend: x.trend })),
         },
       };
@@ -131,26 +139,35 @@ export const boardActions: BoardAction[] = [
   // ---- Interaction tools (visible effect) ----
   {
     name: 'focus_evidence',
-    description: 'Navigate the shared boardroom to a slide and optionally highlight a metric on it, so the founder sees it.',
+    description: 'Navigate the shared boardroom to a slide and highlight one metric or source claim on it, so the founder sees the exact evidence.',
     inputSchema: {
       type: 'object',
       properties: {
         slideId: { type: 'string', description: 'Slide to navigate to.' },
         metricId: { type: 'string', description: 'Optional metric on that slide to highlight.' },
+        claimId: { type: 'string', description: 'Optional source claim id from get_current_slide or get_deck to highlight in place.' },
       },
       required: ['slideId'],
       additionalProperties: false,
     },
-    annotations: { title: 'Focus evidence', effect: 'Navigates the deck and highlights the evidence.' },
+    annotations: { title: 'Focus evidence', effect: 'Navigates the deck and highlights the exact evidence.' },
     isAvailable: (m) => m.deckLoaded,
-    handler: (args: { slideId: string; metricId?: string }) => {
+    handler: (args: { slideId: string; metricId?: string; claimId?: string }, m) => {
+      const targetSlide = m.slides.find((slide) => slide.id === args.slideId);
+      if (!targetSlide) throw new Error(`No slide "${args.slideId}".`);
+      if (args.metricId && !targetSlide.metrics.some((metric) => metric.id === args.metricId)) {
+        throw new Error(`Metric "${args.metricId}" is not on slide ${targetSlide.index + 1}.`);
+      }
+      if (args.claimId && !slideClaims(targetSlide).some((claim) => claim.id === args.claimId)) {
+        throw new Error(`Claim "${args.claimId}" is not on slide ${targetSlide.index + 1}.`);
+      }
       const store = useMeeting.getState();
       store.goToSlide(args.slideId);
       if (args.metricId) store.focusMetric(args.metricId);
-      const slide = currentSlide(useMeeting.getState());
+      if (args.claimId) store.focusClaim(args.claimId);
       return {
-        summary: `Focused slide ${slide ? slide.index + 1 : '?'}${args.metricId ? `, metric ${args.metricId}` : ''}.`,
-        data: { currentSlideId: args.slideId, focusedMetricId: args.metricId ?? null },
+        summary: `Focused slide ${targetSlide.index + 1}${args.metricId ? `, metric ${args.metricId}` : args.claimId ? `, claim ${args.claimId}` : ''}.`,
+        data: { currentSlideId: args.slideId, focusedMetricId: args.metricId ?? null, focusedClaimId: args.claimId ?? null },
       };
     },
   },
@@ -166,13 +183,14 @@ export const boardActions: BoardAction[] = [
         severity: severityEnum,
         slideId: { type: 'string' },
         metricId: { type: 'string' },
+        claimId: { type: 'string', description: 'Optional source claim id from get_current_slide, to anchor the question to exact words.' },
       },
       required: ['statement', 'whyItMatters'],
       additionalProperties: false,
     },
     annotations: { title: 'Raise board question', effect: 'Adds a question to the board review.' },
     isAvailable: (m) => m.meetingStarted && notInReadout(m.phase),
-    handler: (args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string }) =>
+    handler: (args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string; claimId?: string }) =>
       addInterventionResult('question', args),
   },
   {
@@ -187,13 +205,14 @@ export const boardActions: BoardAction[] = [
         severity: severityEnum,
         slideId: { type: 'string' },
         metricId: { type: 'string' },
+        claimId: { type: 'string', description: 'Optional source claim id from get_current_slide, to mark the disputed words.' },
       },
       required: ['statement', 'whyItMatters'],
       additionalProperties: false,
     },
     annotations: { title: 'Flag assumption', effect: 'Adds a flagged concern to the board review.' },
     isAvailable: (m) => m.meetingStarted && notInReadout(m.phase),
-    handler: (args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string }) =>
+    handler: (args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string; claimId?: string }) =>
       addInterventionResult('flag', args),
   },
   {
@@ -298,7 +317,7 @@ export const boardActions: BoardAction[] = [
 
 function addInterventionResult(
   kind: InterventionKind,
-  args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string },
+  args: { statement: string; whyItMatters: string; seat?: BoardSeat; severity?: Severity; slideId?: string; metricId?: string; claimId?: string },
 ) {
   const store = useMeeting.getState();
   const slideId = args.slideId ?? store.currentSlideId ?? undefined;
@@ -310,10 +329,12 @@ function addInterventionResult(
     severity: args.severity ?? 'material',
     slideId,
     metricId: args.metricId,
+    claimId: args.claimId,
   });
   if (!intervention) return { summary: 'That concern is already open (not duplicated).', data: { duplicate: true } };
   if (args.slideId) store.goToSlide(args.slideId);
   if (args.metricId) store.focusMetric(args.metricId);
+  if (args.claimId) store.focusClaim(args.claimId);
   return { summary: `${kind}: ${args.statement}`, data: { intervention } };
 }
 

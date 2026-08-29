@@ -1,7 +1,57 @@
 'use client';
 
 import { currentSlide, useMeeting } from '@/state/meeting-store';
-import type { Metric } from '@/state/types';
+import type { Claim, Intervention, Metric, Region, Severity, Slide } from '@/state/types';
+
+const severityStyle: Record<Severity, { border: string; fill: string }> = {
+  watch: { border: 'var(--watch)', fill: 'rgba(111, 117, 128, 0.16)' },
+  material: { border: 'var(--material)', fill: 'rgba(217, 164, 65, 0.18)' },
+  critical: { border: 'var(--critical)', fill: 'rgba(224, 90, 77, 0.2)' },
+};
+
+function claimsFor(slide: Slide): Claim[] {
+  return slide.claims?.length ? slide.claims : slide.bullets.map((text, index) => ({ id: `${slide.id}-b${index}`, text }));
+}
+
+function strongest(interventions: Intervention[]) {
+  return [...interventions].sort((a, b) => ({ watch: 0, material: 1, critical: 2 })[b.severity] - ({ watch: 0, material: 1, critical: 2 })[a.severity])[0];
+}
+
+function BoardNote({ intervention }: { intervention: Intervention }) {
+  return (
+    <div className="mt-1.5 max-w-[19rem] rounded-md border border-black/10 bg-white/95 px-2.5 py-2 text-left shadow-md">
+      <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-black/45">Board note</span>
+      <p className="mt-0.5 text-[11px] font-medium leading-snug text-stage-ink">{intervention.statement}</p>
+    </div>
+  );
+}
+
+function PdfEvidenceLayer({ slide, interventions, focusedClaimId }: { slide: Slide; interventions: Intervention[]; focusedClaimId: string | null }) {
+  const marks = claimsFor(slide).reduce<{ claim: { id: string; text: string; region: Region }; intervention: Intervention }[]>((result, claim) => {
+    const intervention = strongest(interventions.filter((item) => item.claimId === claim.id));
+    if (claim.region && intervention) result.push({ claim: { ...claim, region: claim.region }, intervention });
+    return result;
+  }, []);
+
+  return (
+    <div className="pointer-events-none absolute inset-0" aria-hidden>
+      {marks.map(({ claim, intervention }) => {
+        const region = claim.region;
+        const focused = focusedClaimId === claim.id;
+        const style = severityStyle[intervention.severity];
+        return (
+          <div key={claim.id} className="absolute" style={{ left: `${region.x * 100}%`, top: `${region.y * 100}%`, width: `${region.w * 100}%` }}>
+            <div
+              className={focused ? 'evidence-claim-focus rounded-sm' : 'rounded-sm'}
+              style={{ height: 'clamp(8px, 1.75vw, 16px)', background: style.fill, boxShadow: `inset 0 -2px 0 ${style.border}` }}
+            />
+            {focused && <BoardNote intervention={intervention} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function Sparkline({ metric, flagged }: { metric: Metric; flagged: boolean }) {
   const values = metric.history.map((h) => h.value);
@@ -50,12 +100,14 @@ function MetricCard({ metric, focused, flagged }: { metric: Metric; focused: boo
 export function SlideStage() {
   const slide = useMeeting(currentSlide);
   const focusedMetricId = useMeeting((s) => s.focusedMetricId);
+  const focusedClaimId = useMeeting((s) => s.focusedClaimId);
   const interventions = useMeeting((s) => s.interventions);
 
   if (!slide) return <div className="flex flex-1 items-center justify-center text-text-faint">Loading deck…</div>;
 
   const flaggedMetricIds = new Set(interventions.filter((i) => i.metricId).map((i) => i.metricId));
   const slideFlagged = interventions.some((i) => i.slideId === slide.id && (i.kind === 'flag' || i.kind === 'question'));
+  const slideInterventions = interventions.filter((i) => i.slideId === slide.id);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -68,8 +120,11 @@ export function SlideStage() {
         </div>
 
         {slide.imageDataUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={slide.imageDataUrl} alt={slide.title} className="mx-auto w-full max-w-3xl rounded-md" />
+          <div className="relative mx-auto w-full max-w-3xl">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={slide.imageDataUrl} alt={slide.title} className="block w-full rounded-md" />
+            <PdfEvidenceLayer slide={slide} interventions={slideInterventions} focusedClaimId={focusedClaimId} />
+          </div>
         ) : (
           <>
             <h2 className="text-3xl font-semibold tracking-tight">{slide.title}</h2>
@@ -77,9 +132,24 @@ export function SlideStage() {
 
             <ul className="mt-6 space-y-2">
               {slide.bullets.map((b) => (
-                <li key={b} className="flex gap-2.5 text-[15px] text-black/75">
+                <li key={b} className="flex items-start gap-2.5 text-[15px] text-black/75">
                   <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-black/40" />
-                  {b}
+                  {(() => {
+                    const claim = claimsFor(slide).find((item) => item.text === b);
+                    const intervention = claim ? strongest(slideInterventions.filter((item) => item.claimId === claim.id)) : undefined;
+                    const focused = claim?.id === focusedClaimId;
+                    const style = intervention ? severityStyle[intervention.severity] : undefined;
+                    return (
+                      <div
+                        data-claim={claim?.id}
+                        className={focused ? 'evidence-claim-focus rounded-sm' : 'rounded-sm'}
+                        style={style ? { background: style.fill, boxShadow: `inset 0 -2px 0 ${style.border}` } : undefined}
+                      >
+                        {b}
+                        {focused && intervention && <BoardNote intervention={intervention} />}
+                      </div>
+                    );
+                  })()}
                 </li>
               ))}
             </ul>

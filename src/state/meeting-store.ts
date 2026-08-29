@@ -24,6 +24,7 @@ function emptyMeeting(): Meeting {
     meetingStarted: false,
     currentSlideId: null,
     focusedMetricId: null,
+    focusedClaimId: null,
     slides: [],
     commitments: [],
     interventions: [],
@@ -40,6 +41,7 @@ interface MeetingActions {
   setPhase: (phase: MeetingPhase) => void;
   goToSlide: (slideId: string) => void;
   focusMetric: (metricId: string | null) => void;
+  focusClaim: (claimId: string | null) => void;
   addIntervention: (input: Omit<Intervention, 'id' | 'createdAt' | 'status'> & { status?: InterventionStatus }) => Intervention | null;
   setInterventionStatus: (id: string, status: InterventionStatus) => void;
   addCommitment: (input: Omit<Commitment, 'id' | 'status'> & { status?: InterventionStatus }) => Commitment;
@@ -86,9 +88,11 @@ export const useMeeting = create<MeetingState>((set, get) => ({
   setPhase: (phase) => set({ phase }),
 
   goToSlide: (slideId) =>
-    set((s) => (s.slides.some((sl) => sl.id === slideId) ? { currentSlideId: slideId, focusedMetricId: null } : {})),
+    set((s) => (s.slides.some((sl) => sl.id === slideId) ? { currentSlideId: slideId, focusedMetricId: null, focusedClaimId: null } : {})),
 
-  focusMetric: (metricId) => set({ focusedMetricId: metricId }),
+  focusMetric: (metricId) => set({ focusedMetricId: metricId, focusedClaimId: null }),
+
+  focusClaim: (claimId) => set({ focusedClaimId: claimId, focusedMetricId: null }),
 
   addIntervention: (input) => {
     const existing = get().interventions.find(
