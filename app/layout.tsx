@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -13,12 +14,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Weave — a canvas you and AI draw on together",
+  title: "Boardwalk — think out loud with an agent",
   description:
-    "A live diagramming canvas an AI operates alongside you through WebMCP tools. Talk to it, draw with it, or let ChatGPT drive it.",
+    "A live canvas where you and an agent turn half-formed ideas into a shared map through WebMCP tools.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"

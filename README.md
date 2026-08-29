@@ -1,78 +1,73 @@
 # Boardwalk
 
-**The board meeting before the board meeting.**
+**A shared space for thinking with agents.**
 
-Boardwalk is a live board-meeting rehearsal environment for founders. You present your company update; an AI board challenges the numbers, questions the story and remembers what you promised last time — and it does this by operating the same shared boardroom you are presenting in, through [WebMCP](https://github.com/webmachinelearning/webmcp) tools.
+Boardwalk is a live, infinite canvas for turning half-formed ideas into a shared map. You add the fragments; an agent helps organise, connect, challenge, and reshape them—directly in the same canvas you are watching.
 
-This is an entry to the 2026 OpenAI WebMCP Challenge.
+This is an entry for the 2026 OpenAI WebMCP Challenge.
 
-> The defining experience is a meeting that pushes back. The founder speaks, the board interrupts, the evidence appears on screen, the founder responds, and the meeting state changes in front of both of them.
+> Chat is where ideas are described. Boardwalk is where they take shape together.
 
-## Why WebMCP is necessary here
+## Why WebMCP
 
-A board meeting combines three things chat and document-review tools handle badly together: rich source material spread across slides and metrics, a live high-pressure conversation, and a **shared visual state both parties inspect and change**.
+An agent should not have to guess at pixels or narrate a diagram back to you. Boardwalk exposes the canvas as a set of structured, contextual WebMCP tools, so an agent can read the current map and make precise, visible edits alongside the human.
 
-Boardwalk's board doesn't describe changes in a chat pane — it *makes* them in the live page: it focuses a metric, flags an unsupported claim on the slide, resurfaces a prior commitment, and drafts a decision for you to accept or reject. WebMCP is what lets the agent reach into the same interface the human is using instead of replacing it. Because the tools are registered on the page with `document.modelContext.registerTool`, the built-in browser agents in ChatGPT and Codex can discover and drive the exact same boardroom — proving Boardwalk is genuinely agent-native, not a private voice agent wearing a WebMCP badge.
+Open a deployed Boardwalk page in ChatGPT's in-app browser, then ask ChatGPT to use the page's **Site tools**. It can add and connect shapes, reorganise the map, and title the session while you see every action happen on the same canvas.
 
-## The single action registry
+The defining moment is a working session: a messy launch brainstorm becomes a decision-ready map of objectives, audiences, moments, risks, owners, and open questions—with both people and agents contributing to the shared spatial artifact.
 
-Every board action is defined **once** in [`src/actions/definitions.ts`](src/actions/definitions.ts) — name, description, JSON Schema, annotations, availability predicate and handler. From that one definition Boardwalk derives:
+## How it works
 
-1. the WebMCP registrations (`document.modelContext.registerTool`), via [`src/actions/webmcp.ts`](src/actions/webmcp.ts)
-2. the OpenAI Realtime function-tool definitions (voice), via [`src/actions/registry.ts`](src/actions/registry.ts)
-3. the visible Site-tools activity feed
+Every action is defined once in [`src/actions/definitions.ts`](src/actions/definitions.ts): its description, JSON Schema, availability, and handler. That registry produces:
 
-`executeAction()` in [`src/actions/registry.ts`](src/actions/registry.ts) is the **only** mutation path for agent-initiated changes, so the voice board and ChatGPT can never drift into different behaviour.
+1. WebMCP registrations via [`src/actions/webmcp.ts`](src/actions/webmcp.ts)
+2. OpenAI tool definitions for Boardwalk's optional chat and voice collaborator
+3. The visible **Site tools** activity feed
 
-### Tool catalogue (12 tools)
+`executeAction()` in [`src/actions/registry.ts`](src/actions/registry.ts) is the only mutation path for agents, so each collaboration surface changes the canvas in the same way.
 
-- **Read** (`readOnlyHint`): `get_meeting_context`, `get_current_slide`, `get_metric_detail`, `get_previous_commitments`
-- **Interaction**: `focus_evidence`, `raise_board_question`, `flag_assumption`, `request_metric_drilldown`, `propose_commitment`, `record_decision`, `set_meeting_phase`, `generate_board_readout`
+### Tool catalogue
 
-### Dynamic tool lifecycle
+- **Read:** `get_canvas`
+- **Create and organise:** `add_shape`, `connect_shapes`, `update_shape`, `delete_shape`, `auto_layout`
+- **Session control:** `set_title`, `clear_canvas`
 
-Tools register and unregister as the meeting moves. `request_metric_drilldown` only exists while the active slide exposes a metric; `generate_board_readout` only after the meeting has at least one intervention. Watch the counter in the Site-tools panel move as you present.
+The tool set is contextual. For example, `connect_shapes` appears only after there are at least two shapes; editing and layout tools appear once the canvas has content. The live counter and activity feed make that lifecycle explicit.
 
-## Run it
+## Run locally
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Open http://localhost:3000 and choose **Try the demo**. No account, no upload — it runs a fictional company, Northstar.
+Open [http://localhost:3000](http://localhost:3000). Start with **Run a launch war room** to create the project’s demo-ready collaboration.
 
-### Let ChatGPT run the board
+### Optional built-in chat and voice collaborator
 
-Boardwalk's board actions are real WebMCP tools registered on the page with `document.modelContext.registerTool`, so **any** agent can drive the same live boardroom — not just our voice board. Open the deployed page in **ChatGPT's built-in browser** (ChatGPT Work / Codex) or **Chrome 149+ with WebMCP**, pick **Site tools** in the address bar to see the boardroom's tools, and ask:
-
-> "Run a board review of this deck."
-
-ChatGPT reads the deck (`get_deck`), flags weak assumptions, raises questions, records a decision, and generates the readout — and you watch the Board review workspace fill in real time. The voice board and ChatGPT operate the exact same tools because both go through one shared action registry ([`src/actions/definitions.ts`](src/actions/definitions.ts)).
-
-### Inspect the WebMCP tools
-
-In the browser console on the meeting page:
-
-```js
-await document.modelContext.getTools();            // list live tools
-await document.modelContext.__call('get_deck', {}); // (polyfill helper) invoke one
-```
-
-## Voice
-
-The Realtime speech-to-speech board runs over WebRTC against `gpt-realtime-2`. The server mints a short-lived client secret in [`app/api/realtime/session/route.ts`](app/api/realtime/session/route.ts); the standard API key never reaches the browser. Realtime function calls run through the same `executeAction` path as WebMCP, and the tool set is re-sent after each call so the dynamic lifecycle carries over to voice. If the microphone is denied, the session still connects and you drive the board by typing.
-
-Until `OPENAI_API_KEY` is set, Boardwalk runs in **text rehearsal mode**: you present in text and a deterministic board director drives the same tools, so both signature moments work with no key.
+Boardwalk can run its own text and voice collaborator using the OpenAI API. This is separate from collaborating through ChatGPT's browser Site tools.
 
 ```bash
-cp .env.example .env.local   # then add OPENAI_API_KEY
+cp .env.example .env.local
 ```
 
-## Tech
+Set `OPENAI_API_KEY` in `.env.local`. You can also set `AGENT_MODEL` and `REALTIME_MODEL`. The Realtime route mints a short-lived client secret; the standard API key never reaches the browser.
 
-Next.js (App Router) · TypeScript · Tailwind CSS · Zustand · WebMCP · OpenAI Realtime (WebRTC).
+Without an API key, the canvas still works normally and WebMCP tools remain available to a compatible browser agent.
 
-## Licence
+### Inspect the live tools
+
+In the browser console:
+
+```js
+await document.modelContext.getTools();
+await document.modelContext.__call('get_canvas', {}); // polyfill helper in unsupported browsers
+```
+
+## Stack
+
+Next.js · TypeScript · Tailwind CSS · Zustand · Excalidraw · WebMCP · OpenAI Realtime (WebRTC)
+
+## License
 
 MIT — see [LICENSE](LICENSE).

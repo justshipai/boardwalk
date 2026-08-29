@@ -6,6 +6,16 @@ import type { BoardAction } from './types';
 const empty = { type: 'object' as const, properties: {}, additionalProperties: false };
 const colorEnum = { type: 'string', enum: ACCENTS, description: 'neutral, blue, green, amber, red or purple.' };
 const kindEnum = { type: 'string', enum: SHAPE_KINDS, description: 'rectangle, ellipse, diamond, note or text.' };
+const shapeProperties = {
+  label: { type: 'string', description: 'Optional text on the shape. Omit it for a pure visual container or icon.' },
+  kind: kindEnum,
+  color: colorEnum,
+  filled: { type: 'boolean', description: 'Fill the shape with a light tint of its colour. Useful for media, selected controls, or emphasis.' },
+  x: { type: 'number', description: 'Left position on the canvas (0 = far left, ~1400 = right).' },
+  y: { type: 'number', description: 'Top position on the canvas (0 = top, ~900 = bottom).' },
+  width: { type: 'number', description: 'Width in px.' },
+  height: { type: 'number', description: 'Height in px.' },
+};
 
 export const boardActions: BoardAction[] = [
   {
@@ -15,8 +25,11 @@ export const boardActions: BoardAction[] = [
     annotations: { title: 'Read canvas', readOnlyHint: true },
     isAvailable: () => true,
     handler: () => {
-      const { nodes, edges } = readCanvas();
-      return { summary: `${nodes.length} shape(s), ${edges.length} connection(s).`, data: { title: useCanvasMeta.getState().title, nodes, edges } };
+      const { nodes, edges, humanElements } = readCanvas();
+      return {
+        summary: `${nodes.length} structured shape(s), ${edges.length} connection(s), and ${humanElements.length} human-made element(s).`,
+        data: { title: useCanvasMeta.getState().title, nodes, edges, humanElements },
+      };
     },
   },
   {
@@ -26,23 +39,55 @@ export const boardActions: BoardAction[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        label: { type: 'string', description: 'Text on the shape.' },
-        kind: kindEnum,
-        color: colorEnum,
-        x: { type: 'number', description: 'Left position on the canvas (0 = far left, ~1400 = right). Optional.' },
-        y: { type: 'number', description: 'Top position (0 = top, ~900 = bottom). Optional.' },
-        width: { type: 'number', description: 'Width in px. Use it to shape a layout: a full-width header bar, a tall content area, a small icon. Optional.' },
-        height: { type: 'number', description: 'Height in px. Optional.' },
+        ...shapeProperties,
       },
       required: ['label'],
       additionalProperties: false,
     },
     annotations: { title: 'Add shape', effect: 'A new shape appears on the canvas.' },
     isAvailable: () => true,
-    handler: (args: { label: string; kind?: ShapeKind; color?: AccentColor; x?: number; y?: number; width?: number; height?: number }) => {
-      const node = createNode({ label: args.label, kind: args.kind, color: args.color, x: args.x, y: args.y, w: args.width, h: args.height });
+    handler: (args: { label: string; kind?: ShapeKind; color?: AccentColor; filled?: boolean; x?: number; y?: number; width?: number; height?: number }) => {
+      const node = createNode({ label: args.label, kind: args.kind, color: args.color, filled: args.filled, x: args.x, y: args.y, w: args.width, h: args.height });
       if (!node) return { summary: 'Canvas not ready.', data: { added: false } };
       return { summary: `Added "${node.label}".`, data: { id: node.id, label: node.label } };
+    },
+  },
+  {
+    name: 'add_shapes',
+    description:
+      'Draw a coherent composition by adding several ordinary, editable shapes in one call. Use this for wireframes, screen layouts, and visual systems that need 8–30 deliberately positioned primitives. Every visible component must be its own shape: for a social home screen draw a device frame, separate story avatars, author row, media, controls, caption, and navigation icons—not four labelled regions. Use exact x/y/width/height values to keep related shapes nested and compact.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        shapes: {
+          type: 'array',
+          description: 'The independently editable primitives that make up the composition.',
+          items: { type: 'object', properties: shapeProperties, additionalProperties: false },
+        },
+      },
+      required: ['shapes'],
+      additionalProperties: false,
+    },
+    annotations: { title: 'Draw composition', effect: 'Several independently editable shapes are drawn as one coherent composition.' },
+    isAvailable: () => true,
+    handler: (args: { shapes: Array<{ label?: string; kind?: ShapeKind; color?: AccentColor; filled?: boolean; x?: number; y?: number; width?: number; height?: number }> }) => {
+      if (!Array.isArray(args.shapes) || args.shapes.length === 0) return { summary: 'Provide at least one shape to draw.', data: { added: 0 } };
+      if (args.shapes.length > 36) return { summary: 'Draw at most 36 shapes in one composition.', data: { added: 0 } };
+      const added = args.shapes
+        .filter((shape) => shape && typeof shape === 'object')
+        .map((shape) =>
+          createNode({
+            label: typeof shape.label === 'string' ? shape.label : '',
+            kind: shape.kind,
+            color: shape.color,
+            filled: shape.filled,
+            x: shape.x,
+            y: shape.y,
+            w: shape.width,
+            h: shape.height,
+          }),
+        );
+      return { summary: `Drew ${added.length} editable shape(s).`, data: { added: added.length, shapes: added } };
     },
   },
   {
@@ -68,13 +113,14 @@ export const boardActions: BoardAction[] = [
   },
   {
     name: 'update_shape',
-    description: 'Rename, recolour or resize a shape. Target it by id or by its current label.',
+    description: 'Rename, recolour, fill or resize a shape. Target it by id or by its current label.',
     inputSchema: {
       type: 'object',
       properties: {
         shape: { type: 'string', description: 'Shape id or label.' },
         label: { type: 'string' },
         color: colorEnum,
+        filled: { type: 'boolean', description: 'Whether the shape has a light tinted fill.' },
         width: { type: 'number', description: 'New width in px. Optional.' },
         height: { type: 'number', description: 'New height in px. Optional.' },
       },
@@ -83,8 +129,8 @@ export const boardActions: BoardAction[] = [
     },
     annotations: { title: 'Update shape', effect: 'A shape is renamed, recoloured or resized.' },
     isAvailable: () => nodeCount() > 0,
-    handler: (args: { shape: string; label?: string; color?: AccentColor; width?: number; height?: number }) => {
-      const updated = updateNode(args.shape, { label: args.label, color: args.color, w: args.width, h: args.height });
+    handler: (args: { shape: string; label?: string; color?: AccentColor; filled?: boolean; width?: number; height?: number }) => {
+      const updated = updateNode(args.shape, { label: args.label, color: args.color, filled: args.filled, w: args.width, h: args.height });
       if (!updated) return { summary: `No shape "${args.shape}".`, data: { updated: false } };
       return { summary: `Updated "${updated.label}".`, data: { updated: true } };
     },

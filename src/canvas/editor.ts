@@ -11,6 +11,7 @@ interface NodeModel {
   label: string;
   kind: ShapeKind;
   color: AccentColor;
+  filled?: boolean;
   x: number;
   y: number;
   w: number;
@@ -21,6 +22,16 @@ interface EdgeModel {
   from: string;
   to: string;
   label?: string;
+}
+
+interface HumanElement {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  text?: string;
 }
 
 let api: ExcalidrawAPI | null = null;
@@ -43,6 +54,15 @@ const stroke: Record<AccentColor, string> = {
   amber: '#ffa94d',
   red: '#ff6b6b',
   purple: '#da77f2',
+};
+
+const fill: Record<AccentColor, string> = {
+  neutral: '#dee2e6',
+  blue: '#a5d8ff',
+  green: '#b2f2bb',
+  amber: '#ffd8a8',
+  red: '#ffc9c9',
+  purple: '#eebefa',
 };
 
 export function setEditor(a: ExcalidrawAPI | null) {
@@ -75,7 +95,7 @@ function nodeSkeleton(id: string, n: NodeModel) {
     width: n.w,
     height: n.h,
     strokeColor: stroke[n.color],
-    backgroundColor: 'transparent',
+    backgroundColor: n.filled ? fill[n.color] : 'transparent',
     roundness: n.kind === 'note' ? { type: 3 } : undefined,
     label: { text: n.label, strokeColor: '#e9ecef', fontSize: 16 },
   };
@@ -159,26 +179,29 @@ export function findId(query: string): string | null {
   return null;
 }
 
-export function createNode(input: { label: string; kind?: ShapeKind; color?: AccentColor; x?: number; y?: number; w?: number; h?: number }) {
+export function createNode(input: { label: string; kind?: ShapeKind; color?: AccentColor; filled?: boolean; x?: number; y?: number; w?: number; h?: number }) {
   const w = input.w !== undefined ? Math.max(MIN_W, Math.round(input.w)) : NODE_W;
   const h = input.h !== undefined ? Math.max(MIN_H, Math.round(input.h)) : NODE_H;
   // reuse an existing shape with the same label instead of creating a duplicate
   const q = input.label.trim().toLowerCase();
-  for (const [existingId, n] of nodes) {
-    if (n.label.toLowerCase() === q) {
-      const patch = { ...n };
-      if (input.x !== undefined && input.y !== undefined) Object.assign(patch, { x: input.x, y: input.y });
-      if (input.w !== undefined) patch.w = w;
-      if (input.h !== undefined) patch.h = h;
-      nodes.set(existingId, patch);
-      pointAt(existingId);
-      rebuild();
-      return { id: existingId, label: n.label };
+  if (q) {
+    for (const [existingId, n] of nodes) {
+      if (n.label.toLowerCase() === q) {
+        const patch = { ...n };
+        if (input.x !== undefined && input.y !== undefined) Object.assign(patch, { x: input.x, y: input.y });
+        if (input.w !== undefined) patch.w = w;
+        if (input.h !== undefined) patch.h = h;
+        if (input.filled !== undefined) patch.filled = input.filled;
+        nodes.set(existingId, patch);
+        pointAt(existingId);
+        rebuild();
+        return { id: existingId, label: n.label };
+      }
     }
   }
   const id = uid('n');
   const pos = { x: input.x ?? gridPos().x, y: input.y ?? gridPos().y };
-  nodes.set(id, { label: input.label, kind: input.kind ?? 'rectangle', color: input.color ?? 'neutral', x: pos.x, y: pos.y, w, h });
+  nodes.set(id, { label: input.label, kind: input.kind ?? 'rectangle', color: input.color ?? 'neutral', filled: input.filled, x: pos.x, y: pos.y, w, h });
   pointAt(id);
   rebuild();
   return { id, label: input.label };
@@ -196,7 +219,7 @@ export function connectNodes(sourceQ: string, targetQ: string, label?: string) {
   return id;
 }
 
-export function updateNode(query: string, patch: { label?: string; color?: AccentColor; w?: number; h?: number }) {
+export function updateNode(query: string, patch: { label?: string; color?: AccentColor; filled?: boolean; w?: number; h?: number }) {
   const id = findId(query);
   if (!id) return null;
   const n = nodes.get(id)!;
@@ -204,6 +227,7 @@ export function updateNode(query: string, patch: { label?: string; color?: Accen
     ...n,
     label: patch.label ?? n.label,
     color: patch.color ?? n.color,
+    filled: patch.filled ?? n.filled,
     w: patch.w !== undefined ? Math.max(MIN_W, Math.round(patch.w)) : n.w,
     h: patch.h !== undefined ? Math.max(MIN_H, Math.round(patch.h)) : n.h,
   });
@@ -222,9 +246,35 @@ export function deleteNode(query: string) {
 }
 
 export function readCanvas() {
+  const humanElements: HumanElement[] = api
+    ? (api.getSceneElements() as Array<Record<string, unknown>>)
+        .filter((element) => !managedIds.has(element.id as string) && !element.isDeleted)
+        .slice(0, 80)
+        .map((element) => ({
+          id: String(element.id),
+          type: String(element.type),
+          x: Number(element.x ?? 0),
+          y: Number(element.y ?? 0),
+          width: Number(element.width ?? 0),
+          height: Number(element.height ?? 0),
+          ...(typeof element.text === 'string' && element.text.trim() ? { text: element.text.trim() } : {}),
+        }))
+    : [];
+
   return {
-    nodes: [...nodes].map(([id, n]) => ({ id, label: n.label, kind: n.kind, color: n.color })),
-    edges: edges.map((e) => ({ from: e.from, to: e.to, label: e.label })),
+    nodes: [...nodes].map(([id, n]) => ({
+      id,
+      label: n.label,
+      kind: n.kind,
+      color: n.color,
+      filled: n.filled ?? false,
+      x: n.x,
+      y: n.y,
+      width: n.w,
+      height: n.h,
+    })),
+    edges: edges.map((e) => ({ id: e.id, from: e.from, to: e.to, label: e.label })),
+    humanElements,
   };
 }
 
